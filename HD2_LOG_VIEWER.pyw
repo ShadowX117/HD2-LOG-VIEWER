@@ -218,7 +218,7 @@ class TelemetryAnalyzer:
         for enc in ['utf-8-sig', 'latin-1', 'cp1252']:
             try:
                 self.df = pd.read_csv(self.path, encoding=enc, sep=sep, on_bad_lines='skip',
-                                      engine='python')
+                                     engine='python')
                 if not self.df.empty:
                     success = True
                     break
@@ -251,7 +251,7 @@ class TelemetryAnalyzer:
             else:
                 break
         self.df.ffill(inplace=True)
-
+        
         # Keep time_series in sync with df after row trimming
         if self.time_series is not None:
             self.time_series = self.time_series.iloc[:len(self.df)].reset_index(drop=True)
@@ -361,7 +361,7 @@ class TelemetryApp:
             'clock_instability': 0.35,     # std/mean ratio threshold
             'throttle_threshold': 0.9,     # throttling flag sensitivity (0–1)
             # Signature-specific thresholds (used by _run_signatures)
-            'sig_cpu_thermal_pct': 0.95,   # fraction of temp limit to trigger CPU thermal signature
+            'sig_cpu_thermal_pct': 0.85,   # fraction of temp limit to trigger CPU thermal signature
             'sig_cpu_thermal_samples': 10, # consecutive samples required
             'sig_fan_stall_rpm': 100.0,    # RPM below which fan is considered stalled
             'sig_fan_min_spinning': 200.0, # min peak RPM for fan to be considered "has spun"
@@ -1431,9 +1431,6 @@ class TelemetryApp:
         return None
 
     def _run_signatures(self) -> list:
-        """
-        Runs all 18 hardware failure and performance signatures with full diagnostic advice.
-        """
         hits = []
         df = self.df
 
@@ -1446,49 +1443,100 @@ class TelemetryApp:
                 'evidence': clean_ev
             })
 
-        # ── SENSOR MAPPING ──────────────────ADENDUM: MIGHT NEED TO BE TWEAKED ─────────────────────
-        cpu_temp      = self._col_excl(('CPU', 'TEMP'), excl=('ACCUMULATED',)) or self._col('TDIE') or self._col('TCTL')
-        cpu_clock     = self._col('CORE', 'CLOCK', 'AVG') or self._col('CPU', 'CLOCK')
-        eff_clock     = self._col('CORE', 'EFFECTIVE', 'CLOCK', 'AVG') or self._col('EFFECTIVE', 'CLOCK')
-        cpu_usage_col = (self._col('MAX', 'THREAD', 'USAGE') or self._col('MAX', 'CPU', 'USAGE') or self._col('CORE', 'USAGE', 'AVG'))
-        cpu_power     = self._col('CPU', 'PPT') or self._col('CPU', 'POWER')
-        cpu_utility   = self._col('Total CPU Utility [%]') or self._col('Total CPU Usage [%]')
-        throttle      = self._col('THROTTLING') or self._col('PROCHOT')
+        # ── SENSOR MAPPING ───────────────────────────────────────────────────────────
 
-        gpu_hotspot   = self._col('HOTSPOT') or self._col('HOT SPOT') or self._col('GPU', 'TEMP')
-        gpu_usage_col = self._col('GPU', 'USAGE') or self._col('GPU', 'LOAD')
-        gpu_clock     = self._col('GPU', 'CLOCK') or self._col('GPU', 'FREQUENCY')
-        gpu_throttle  = self._col('GPU', 'THROTTL') or self._col('PERFCAP')
-        gpu_mem_usage = self._col('GPU', 'MEMORY', 'USAGE', '[%]') or self._col('GPU', 'MEMORY', 'USAGE') or self._col('GPU', 'MEM', 'LOAD')
-        gpu_pwr_limit = self._col('PERFORMANCE LIMIT - POWER') or self._col('GPU', 'PERFCAP', 'PWR')
-        gpu_power     = self._col('GPU', 'POWER') or self._col('GPU', 'TGP') or self._col('GPU', 'ASIC', 'POWER')
-        gpu_bus_col   = self._col('GPU Bus Load') or self._col('Bus Load')
-        gpu_pwr_limit = self._col('Performance Limit - Power [Yes/No]')
+        # ── CPU Metrics ───────────────────────────────────────────────────────────────
+
+        cpu_temp      = self._col('TCTL') or self._col('TDIE') or self._col('PROZESSOR', 'TEMPERATUR') or self._col('TEMPERATUR') or self._col('CPU')
+        cpu_hotspot   = self._col('HOT', 'SPOT') or self._col('GPU', 'HOT')
+        cpu_clock     = self._col('KERN', 'TAKT') or self._col('CORE', 'CLOCK') or self._col('CLOCK')
+        eff_clock     = self._col('CPU', 'EFF') or self._col('EFFIZIENZ') or self._col('EFFECTIVE')
+        cpu_usage_col = self._col('CPU', 'AUSLASTUNG') or self._col('CPU', 'USAGE') or self._col('CPU', 'UTIL') or self._col('CPU', 'LOAD') or self._col('PROZESSOR') or self._col('TOTAL', 'CPU')
+        cpu_power     = self._col('CPU-Gesamt-Leistungsaufnahme') or self._col('CPU', 'PACKAGE') or self._col('CPU', 'PPT') or self._col('CPU', 'POWER') or self._col('CPU Package Power')
+        throttle      = self._col('THROTTLE') or self._col('PROCHOT')
+        cpu_utility   = self._col('CPU USAGE') or self._col('CPU UTILIZATION') or self._col('CPU AUSLASTUNG') or self._col('TOTAL CPU USAGE')
+
+        # GPU Metrics (Fixing the 45.8°C CPU mixup)
+        gpu_hotspot   = self._col_excl(('GPU', 'HOT'), excl=('CPU', 'LIMIT')) or self._col_excl(('GPU', 'TEMP'), excl=('CPU',))
+        gpu_usage_col = self._col('GPU', 'USAGE') or self._col('GPU', 'LOAD') or self._col('GPU', 'AUSLASTUNG') or self._col('GPU USAGE')
+        gpu_clock     = self._col('GPU', 'CLOCK') or self._col('GPU', 'FREQUENCY') or self._col('GPU', 'TAKT')
+        gpu_throttle  = self._col_excl(('GPU', 'THROTTL'), excl=('CPU',)) or self._col('PERFCAP')
+        gpu_power     = self._col('GPU', 'POWER') or self._col('BOARD', 'POWER') or self._col('TOTAL', 'BOARD') or self._col('TGP') or self._col('TBP') or self._col('ASIC') or self._col('NVVDD') or self._col('PCIe') or self._col('LEISTUNG') or self._col('EINGANGSLEISTUNG') or self._col('POWER')
         gpu_clk_col   = self._col('GPU Clock [MHz]')
 
-        gpu_12v_input_v = (self._col('GPU 12VHPWR Voltage') or self._col('GPU PCIe +12V Input Voltage') or self._col('GPU 12V Input Voltage'))
-        gpu_12v_input_w = (self._col('GPU 12VHPWR Power') or self._col('GPU Power [W]') or self._col('GPU Board Power'))
-       
+        # GPU Electrical & Power Limits
+        gpu_12v_input_v = self._col('GPU 12VHPWR Voltage') or self._col('GPU PCIe +12V Input Voltage') or self._col('GPU 12V Input Voltage')
+        gpu_12v_input_w = self._col('GPU 12VHPWR Power') or self._col('GPU Power [W]') or self._col('GPU Board Power')
+        gpu_pwr_limit   = self._col('Performance Limit - Power [Yes/No]') or self._col('PERFCAP', 'PWR')
 
+        # GPU Memory & Bus
+        gpu_mem_usage = self._col('GPU','MEMORY','USAGE') or self._col('GPU','MEMORY','ALLOCATED') or self._col('GPU','MEM','USAGE') or self._col('GPU','MEM','LOAD') or self._col('D3D','MEMORY') or self._col('VRAM','USAGE') or self._col('FRAMEBUFFER') or self._col('ADAPTER','MEMORY')
+        vram_junction_temp = self._col('GPU Memory Junction Temperature [°C]')
         gpu_mem_dedicated = self._col('GPU D3D Memory Dedicated')
         gpu_mem_dynamic   = self._col('GPU D3D Memory Dynamic')
+        gpu_bus_col       = self._col('GPU Bus Load') or self._col('Bus Load')
 
-        is_laptop     = any(k in "".join(df.columns).upper() for k in ['BATTERY', 'CHARGE', 'AC ADAPTER', 'DISCHARGE', 'MOBILE', 'LAPTOP'])
-        ft_col        = (self._col('Frametime [ms]') or self._col('GPU Frametime') or self._col('Frame Time'))
-        fclk_col      = self._col('Infinity Fabric Clock (FCLK) [MHz]')
-        uclk_col      = self._col('Memory Controller Clock (UCLK) [MHz]')
+        # System & Performance
+        is_laptop     = any(k in "".join(self.df.columns).upper() for k in ['BATTERY', 'CHARGE', 'AC ADAPTER', 'DISCHARGE', 'MOBILE', 'LAPTOP'])
+        chipset_t     = self._col('Chipset [°C]') or self._col('Motherboard [°C]')
+        usb_v_col     = self._col('USB VCC') or self._col('USB Voltage')
+        pcie_errors   = self._col('PCI Express Error Counters (avg)')
+        system_interrupts = self._col('System Interrupts') or self._col('DPC Latency')
+        
+        # Timing & Clocks
+        ft_col        = self._col('Frametime [ms]') or self._col('GPU Frametime') or self._col('Frame Time')
+        gpu_busy_ms   = self._col('GPU Busy (avg) [ms]')
+        gpu_wait_ms   = self._col('GPU Wait (avg) [ms]')
+        gpu_eff_clock = self._col('GPU Effective Clock [MHz]')
+        fclk_col = self._col('FCLK') or None
+        uclk_col = next((c for c in df.columns if 'UCLK' in c), None)
+        mclk_col = self._col('MCLK') or self._col('MEMORY CLOCK') or self._col('DRAM CLOCK') or None
 
-        vram_junction_temp = self._col('GPU Memory Junction Temperature [°C]')
-        gpu_eff_clock      = self._col('GPU Effective Clock [MHz]')
-        pcie_errors        = self._col('PCI Express Error Counters (avg)')
-        gpu_busy_ms        = self._col('GPU Busy (avg) [ms]')
-        gpu_wait_ms        = self._col('GPU Wait (avg) [ms]')
-        system_interrupts  = self._col('System Interrupts') or self._col('DPC Latency')
-        
-        usb_v_col = self._col('USB VCC') or self._col('USB Voltage')
-        chipset_t = self._col('Chipset [°C]') or self._col('Motherboard [°C]')
-        
-        
+        # ── Sensor Debug ───────────────────────────────────────────────────────────────
+
+        # def dbg(name, value):
+        #     status = "ok" if value is not none else "miss"
+        #     print(f"[{status}] {name}: {value}")
+        # mapping_debug = {
+        #     "cpu_temp": cpu_temp,
+        #     "cpu_hotspot": cpu_hotspot,
+        #     "cpu_clock": cpu_clock,
+        #     "eff_clock": eff_clock,
+        #     "cpu_usage_col": cpu_usage_col,
+        #     "cpu_power": cpu_power,
+        #     "throttle": throttle,
+        #     "cpu_utility": cpu_utility,
+
+        #     "gpu_hotspot": gpu_hotspot,
+        #     "gpu_usage_col": gpu_usage_col,
+        #     "gpu_clock": gpu_clock,
+        #     "gpu_power": gpu_power,
+        #     "gpu_throttle": gpu_throttle,
+        #     "gpu_clk_col": gpu_clk_col,
+
+        #     "gpu_mem_usage": gpu_mem_usage,
+        #     "vram_junction_temp": vram_junction_temp,
+        #     "gpu_mem_dedicated": gpu_mem_dedicated,
+        #     "gpu_mem_dynamic": gpu_mem_dynamic,
+        #     "gpu_bus_col": gpu_bus_col,
+
+        #     "chipset_t": chipset_t,
+        #     "usb_v_col": usb_v_col,
+        #     "pcie_errors": pcie_errors,
+        #     "system_interrupts": system_interrupts,
+
+        #     "ft_col": ft_col,
+        #     "gpu_wait_ms": gpu_wait_ms,
+        #     "gpu_busy_ms": gpu_busy_ms,
+        #     "gpu_eff_clock": gpu_eff_clock,
+
+        #     "fclk_col": fclk_col,
+        #     "uclk_col": uclk_col,
+        #     "mclk_col": mclk_col,
+        # }
+
+        # for k, v in mapping_debug.items():
+        #     dbg(k, v)
         
 
         def mx(col): return df[col].max() if col and col in df.columns else 0
@@ -1498,22 +1546,59 @@ class TelemetryApp:
         
         if cpu_temp:
             limit = self.temp_limits.get('TDIE', 95.0)
-            if self._sustained(cpu_temp, limit * self.sig_cpu_thermal_pct,
-                               n_samples=self.sig_cpu_thermal_samples):
+            warn_threshold = limit * 0.85
+            crit_threshold = limit * 0.92
+            
+            is_critical = self._sustained(cpu_temp, crit_threshold,
+                                          n_samples=self.sig_cpu_thermal_samples)
+            is_warning  = self._sustained(cpu_temp, warn_threshold,
+                                          n_samples=self.sig_cpu_thermal_samples)
+
+            if is_critical or is_warning:
                 thr_active = throttle and mx(throttle) >= 1.0
-                add("CPU Thermal Throttling", "CRITICAL" if thr_active else "WARNING",
+                severity = "CRITICAL" if is_critical else "WARNING"
+                add("CPU Thermal Throttling", severity,
                     "CPU is hitting its thermal ceiling. ADVICE: Check CPU cooler mounting, re-apply thermal paste, or ensure your AIO pump hasn't failed.",
-                    [f"Peak Temp: {mx(cpu_temp):.1f}°C", f"Throttling Flag: {'Active' if thr_active else 'Inactive'}"])
+                    [f"Peak Temp: {mx(cpu_temp):.1f}°C",
+                     f"Limit: {limit:.0f}°C",
+                     f"Throttling Flag: {'Active' if thr_active else 'Inactive'}"])
         
-        # 2. GPU OVERHEATING
-        
+        # 2. GPU THERMALS (HOTSPOT & DELTA)
         if gpu_hotspot:
+            hs_max = mx(gpu_hotspot)
             hs_limit = self.temp_limits.get('HOTSPOT', 95.0)
-            if mx(gpu_hotspot) >= hs_limit:
+            
+            # Identify the Edge temperature column
+            gpu_edge = self._col_excl(('GPU', 'TEMP'), excl=('HOTSPOT', 'MEMORY', 'CPU'))
+            
+            # Calculate Delta (Hotspot - Edge)
+            delta_val = 0
+            if gpu_edge:
+                # Calculate the maximum difference found in the logs
+                delta_series = self.df[gpu_hotspot] - self.df[gpu_edge]
+                delta_val = delta_series.max()
+            
+            # Evidence list: Always included to provide context
+            evidence = [
+                f"Hotspot Max: {hs_max:.1f}°C",
+                f"Thermal Delta: {delta_val:.1f}°C"
+            ]
+
+            # 2a. CRITICAL: Absolute Temperature Over Limit
+            if hs_max >= hs_limit:
                 add("GPU Overheating (Hotspot)", "CRITICAL", 
-                    "The GPU Hotspot is at dangerous levels. ADVICE: Increase GPU fan curve in Afterburner or improve case intake airflow.",
-                    [f"Hotspot Max: {mx(gpu_hotspot):.1f}°C", f"Hardware Limit: {hs_limit}°C"])
-        
+                    "The GPU Hotspot is at dangerous levels. ADVICE: Immediately increase GPU fan curves in Afterburner and check for obstructed case airflow.",
+                    evidence + [f"Hardware Limit: {hs_limit}°C"])
+            
+            # 2b. WARNING: High Temperature OR High Delta (Mounting Issue)
+            elif hs_max > (hs_limit - 10) or delta_val >= 21.0:
+                if delta_val >= 21.0:
+                    msg = "High thermal delta detected. ADVICE: A gap over 21°C suggests poor mounting pressure or 'pump-out' of thermal paste. Consider re-pasting the GPU."
+                else:
+                    msg = "GPU Hotspot is approaching dangerous levels. ADVICE: Increase fan speeds or reduce the power limit."
+                
+                add("GPU Thermal Warning", "WARNING", msg, evidence)
+            
         # 3. PSU +12V RAIL STABILITY
         v12 = self._col('+12V')
         if v12:
@@ -1530,13 +1615,21 @@ class TelemetryApp:
         # 4. GPU DRIVER TDR / CRASH
         
         if gpu_usage_col and gpu_clock:
-            tdr_mask = (df[gpu_usage_col] < 1.0) & (df[gpu_clock] > avg(gpu_clock) * self.sig_tdr_clock_frac)
-            if (df[gpu_usage_col] > 20).any() and tdr_mask.any():
-                add("GPU Driver TDR (Timeout)", "CRITICAL", 
-                    "A GPU driver 'Timeout' was detected. The driver crashed and attempted to restart. "
-                    "ADVICE: This is usually caused by an unstable GPU overclock or a corrupted driver. "
-                    "Try lowering your GPU core/memory clock by 50MHz or use DDU for a fresh driver install.",
-                    [f"Reset Events: {int(tdr_mask.sum())} samples detected."])
+            low_usage = df[gpu_usage_col] < 5
+            clock_stall = (df[gpu_clock].rolling(3).std() < 1.0) & (df[gpu_clock] > 0)
+
+            tdr_mask = low_usage & clock_stall
+
+            confirmed_tdr = tdr_mask.rolling(5).sum() >= 3
+
+            if (df[gpu_usage_col].rolling(10).mean() > 20).any() and confirmed_tdr.any():
+                add(
+                    "GPU Driver TDR (Timeout)", "CRITICAL",
+                    "A GPU driver timeout pattern was detected. Likely driver stall or reset event.",
+                    [
+                f"Confirmed Events: {int(confirmed_tdr.sum())} samples detected."
+                    ]
+                )
         
         # 5. MULTI-DRIVE OVERHEATING (ATTEMPT TO SCANS ALL DRIVES)
         drive_temps = [c for c in df.columns if 'TEMP' in c.upper() and any(k in c.upper() for k in ['DRIVE', 'NVME', 'SSD'])]
@@ -2200,24 +2293,93 @@ class TelemetryApp:
                     ]
                 )
 
-        # 29. RYZEN FABRIC DESYNC (AMD ONLY)
+                # 29. RYZEN FABRIC DESYNC (AMD ONLY)
 
-        if fclk_col and uclk_col:
-            # Check for 1:1 ratio; drift of >2MHz indicates a divider is active
-            is_desynced = (df[fclk_col] - df[uclk_col]).abs() > 2
-            
-            if is_desynced.any():
-                f_val = df[fclk_col].iloc[0]
-                u_val = df[uclk_col].iloc[0]
-                add(
-                    name="Ryzen Fabric Desync",
-                    severity="INFO",
-                    description=f"FCLK ({f_val:.0f}) and UCLK ({u_val:.0f}) are not 1:1. This increases latency.",
-                    evidence=[
-                        f"FCLK/UCLK Mismatch: {abs(f_val-u_val):.0f} MHz",
-                        "ADVICE: Set Infinity Fabric to 'Auto' or '1:1' in BIOS."
-                    ]
-                )
+        if fclk_col and uclk_col and mclk_col:
+
+            f_med = df[fclk_col].median()
+            u_med = df[uclk_col].median()
+            m_med = df[mclk_col].median()
+
+            # -----------------------------
+            # PLATFORM DETECTION
+            # -----------------------------
+            is_ddr5 = m_med > 2400  # simple + reliable
+
+
+            # -----------------------------
+            # DDR5: CHECK UCLK vs MCLK
+            # -----------------------------
+            if is_ddr5:
+
+                delta = (df[uclk_col] - df[mclk_col]).abs()
+
+                # filter noise
+                desync_mask = delta > 10
+
+                if desync_mask.mean() > 0.05:
+
+                    u_val = df.loc[desync_mask, uclk_col].median()
+                    m_val = df.loc[desync_mask, mclk_col].median()
+                    mismatch = abs(u_val - m_val)
+
+                    add(
+                        name="Memory Controller Desync",
+                        severity="WARNING" if mismatch > 50 else "INFO",
+                        description=(
+                            f"UCLK ({u_val:.0f}) is not synchronized with MCLK ({m_val:.0f}). "
+                            "This increases memory latency."
+                        ),
+                        evidence=[
+                            f"UCLK/MCLK Mismatch: {mismatch:.0f} MHz",
+                            f"Desync Duration: {desync_mask.mean()*100:.1f}%",
+                            "Expected: UCLK = MCLK (1:1)",
+                            "ADVICE: Set UCLK=MCLK in BIOS."
+                        ]
+                    )
+
+
+            # -----------------------------
+            # DDR4: CHECK FCLK vs UCLK
+            # -----------------------------
+            else:
+
+                delta = (df[fclk_col] - df[uclk_col]).abs()
+
+                desync_mask = delta > 5
+
+                if desync_mask.mean() > 0.05:
+
+                    f_val = df.loc[desync_mask, fclk_col].median()
+                    u_val = df.loc[desync_mask, uclk_col].median()
+                    mismatch = abs(f_val - u_val)
+
+                    ratio = u_val / f_val if f_val else 0
+
+                    if 0.95 <= ratio <= 1.05:
+                        state = "1:1 (Optimal)"
+                        severity = "INFO"
+                    elif 1.9 <= ratio <= 2.1:
+                        state = "1:2 (High Latency Mode)"
+                        severity = "WARNING"
+                    else:
+                        state = "Invalid / Misreported"
+                        severity = "CRITICAL"
+
+                    add(
+                        name="Ryzen Fabric Desync",
+                        severity=severity,
+                        description=(
+                            f"FCLK ({f_val:.0f}) and UCLK ({u_val:.0f}) are not synchronized."
+                        ),
+                        evidence=[
+                            f"Ratio: {ratio:.2f} → {state}",
+                            f"Mismatch: {mismatch:.0f} MHz",
+                            f"Desync Duration: {desync_mask.mean()*100:.1f}%",
+                            "Expected: FCLK = UCLK (1:1)",
+                            "ADVICE: Set Infinity Fabric to match memory clock."
+                        ]
+                    )
 
         # 30. GPU POWER LIMIT OSCILLATION (SAWTOOTH STUTTER)
 
@@ -2376,7 +2538,7 @@ class TelemetryApp:
                         bg=bg, fg="#888").pack()
 
             else:
-                results.sort(key=lambda r: 0 if r['severity'] == 'CRITICAL' else 1)
+                results.sort(key=lambda r: {'CRITICAL': 0, 'WARNING': 1, 'INFO': 2}.get(r['severity'], 3))
 
                 for r in results:
 

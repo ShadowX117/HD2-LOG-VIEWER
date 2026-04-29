@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  PYTHONHASHSEED: "1"
+
 jobs:
   build:
     runs-on: windows-latest
@@ -39,11 +42,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifact | Out-Null
+          New-Item -ItemType Directory -Force artifact\sha256 | Out-Null
 
       - name: Build Executable
         shell: pwsh
         run: |
-          pyinstaller --clean `
+          pyinstaller --clean --noconfirm `
             --onefile `
             --noconsole `
             --name "HD2_LOG_VIEWER" `
@@ -57,7 +61,49 @@ jobs:
           Copy-Item "dist\HD2_LOG_VIEWER.exe" "artifact\" -Force
           Copy-Item "groups.json" "artifact\" -Force
 
-      - name: Create Release ZIP + SHA256
+      - name: Generate Build Info
+        shell: pwsh
+        run: |
+          $buildInfo = @{
+            version = "${{ github.ref_name }}"
+            date = Get-Date -Format "yyyy-MM-dd"
+            commit = "${{ github.sha }}"
+            builder = "github-actions"
+            tool = "pyinstaller"
+          } | ConvertTo-Json -Depth 10
+
+          $buildInfo | Set-Content "artifact\build_info.json" -Encoding utf8
+
+      - name: Generate SHA256 Hashes
+        shell: pwsh
+        run: |
+          $exeHash  = (Get-FileHash "artifact\HD2_LOG_VIEWER.exe" -Algorithm SHA256).Hash
+          $jsonHash = (Get-FileHash "artifact\groups.json" -Algorithm SHA256).Hash
+
+          $exeHash  | Set-Content "artifact\sha256\exe.sha256"
+          $jsonHash | Set-Content "artifact\sha256\groups.sha256"
+
+      - name: Create Manifest
+        shell: pwsh
+        run: |
+          $exeHash  = Get-Content "artifact\sha256\exe.sha256"
+          $jsonHash = Get-Content "artifact\sha256\groups.sha256"
+
+          $manifest = @{
+            version = "${{ github.ref_name }}"
+            build_date = Get-Date -Format "yyyy-MM-dd"
+            files = @{
+              "HD2_LOG_VIEWER.exe" = $exeHash
+              "groups.json" = $jsonHash
+            }
+          } | ConvertTo-Json -Depth 10
+
+          $manifest | Set-Content "artifact\manifest.json" -Encoding utf8
+
+          $manifestHash = (Get-FileHash "artifact\manifest.json" -Algorithm SHA256).Hash
+          $manifestHash | Set-Content "artifact\sha256\manifest.sha256"
+
+      - name: Create Release ZIP
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}" -replace "refs/tags/", ""
@@ -68,10 +114,8 @@ jobs:
             -DestinationPath "artifact\$zip" `
             -Force
 
-          $hash = Get-FileHash "artifact\$zip" -Algorithm SHA256
-          $hash.Hash.ToUpper() | Set-Content "artifact\sha256.txt" -Encoding utf8
-
-          Set-Content "artifact\zipname.txt" $zip -Encoding utf8
+          $zipHash = (Get-FileHash "artifact\$zip" -Algorithm SHA256).Hash
+          $zipHash | Set-Content "artifact\sha256\zip.sha256"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -85,7 +129,6 @@ jobs:
         with:
           files: artifact/release_*.zip
           prerelease: ${{ contains(github.ref_name, '-dev') }}
-
 
   update_readme:
     runs-on: windows-latest
@@ -106,9 +149,13 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}" -replace "refs/tags/", ""
-          $hash = Get-Content "artifact\sha256.txt"
           $date = Get-Date -Format "yyyy-MM-dd"
           $zip = "release_$tag.zip"
+
+          $exeHash = Get-Content "artifact\sha256\exe.sha256"
+          $jsonHash = Get-Content "artifact\sha256\groups.sha256"
+          $manifestHash = Get-Content "artifact\sha256\manifest.sha256"
+          $zipHash = Get-Content "artifact\sha256\zip.sha256"
 
           $start = "<!-- LATEST_RELEASE_START -->"
           $end = "<!-- LATEST_RELEASE_END -->"
@@ -118,7 +165,13 @@ jobs:
           ### 🚀 Latest Release: $tag ($date)
 
           - Download: [release_$zip](https://github.com/${{ github.repository }}/releases/download/$tag/$zip)
-          - SHA256: $hash
+
+          ### 🔐 Integrity
+
+          - EXE SHA256: $exeHash
+          - Groups JSON SHA256: $jsonHash
+          - Manifest SHA256: $manifestHash
+          - ZIP SHA256: $zipHash
           $end
           "@
 
@@ -132,14 +185,13 @@ jobs:
 
           Set-Content README.md $readme -Encoding utf8
 
-      - name: Commit README Safely
+      - name: Commit README
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add README.md
-          git commit -m "docs: update release ${{ github.ref_name }} [skip ci]" || exit 0
-
+          git commit -m "docs: update release ${{ github.ref_name }}" || exit 0
           git pull --rebase origin master
           git push origin HEAD:master

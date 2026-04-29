@@ -61,7 +61,7 @@
         "delta_mode": false,
         "ignored_version": "",
         "updates_disabled": false,
-        "time_mode": false,
+        "time_mode": true,
         "heatmap_mode": false,
         "thresholds": {
             "temp_limits": {
