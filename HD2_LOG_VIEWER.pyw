@@ -276,7 +276,7 @@ class TelemetryAnalyzer:
         fraction of non-empty cells match the HWiNFO device-label pattern, then
         collect unique device names from that row.
         """
-        # ── Known HWiNFO type-tag prefixes ─────────────────────────────────
+        # -- Known HWiNFO type-tag prefixes ---------------------------------
         # These appear before the first ": " in each label cell.
         _KNOWN_TAGS = re.compile(
             r'^(CPU|iGPU|dGPU|GPU|DDR\d*\s*DIMM|S\.M\.A\.R\.T\.|Drive|'
@@ -324,7 +324,7 @@ class TelemetryAnalyzer:
         if not all_rows:
             return {}
 
-        # ── Find the label row(s) ───────────────────────────────────────────
+        # -- Find the label row(s) -------------------------------------------
         # Score each row by the fraction of non-empty cells that are label cells.
         best_row = []
         best_score = 0.0
@@ -346,7 +346,7 @@ class TelemetryAnalyzer:
         if sum(1 for c in best_row if _is_label_cell(c)) < 3:
             return {}
 
-        # ── Category rules (matched against the TYPE TAG, first match wins) ─
+        # -- Category rules (matched against the TYPE TAG, first match wins) -
         _TYPE_CATEGORY = [
             (['IGPU'],                                      'iGPU (Integrated Graphics)'),
             (['DGPU', 'GPU'],                               'GPU'),
@@ -430,7 +430,7 @@ class TelemetryAnalyzer:
             if device_name not in seen:
                 seen[device_name] = cat
 
-        # ── Build ordered result ────────────────────────────────────────────
+        # -- Build ordered result --------------------------------------------
         _CAT_ORDER = [
             'System / Motherboard', 'CPU', 'iGPU (Integrated Graphics)', 'GPU',
             'Memory (RAM)', 'Memory Timings', 'Storage', 'Chipset',
@@ -733,7 +733,7 @@ class TelemetryApp:
                 tk.Label(f, text=unit, bg=bg, fg="#888",
                          font=('Segoe UI', 8)).pack(side=tk.LEFT)
 
-        # ── Temperature limits ────────────────────────────────────────────────
+        # -- Temperature limits ------------------------------------------------
         section("Temperature Limits (°C)")
         temp_display = [
             ("GPU Core",              "GPU"),
@@ -755,50 +755,50 @@ class TelemetryApp:
             if key in self.temp_limits:
                 row(label, f"temp_{key}", self.temp_limits[key], "°C")
 
-        # ── Voltage rails ─────────────────────────────────────────────────────
+        # -- Voltage rails -----------------------------------------------------
         section("Voltage Rails — Safe Range (V)")
         range_row("+12V Rail",   "rail_12v_lo",   "rail_12v_hi",   *self.volt_rails['+12V'],  "V")
         range_row("+5V Rail",    "rail_5v_lo",    "rail_5v_hi",    *self.volt_rails['+5V'],   "V")
         range_row("+3.3V Rail",  "rail_33v_lo",   "rail_33v_hi",   *self.volt_rails['+3.3V'], "V")
 
-        # ── Component voltages ────────────────────────────────────────────────
+        # -- Component voltages ------------------------------------------------
         section("Component Voltages")
         range_row("CPU Vcore",   "cpu_volt_lo", "cpu_volt_hi", *self.cpu_volt_range,  "V")
         range_row("DRAM Voltage","dram_volt_lo","dram_volt_hi",*self.dram_volt_range, "V")
         row("GPU Core Voltage max", "gpu_volt_max", self.gpu_volt_max, "V")
 
-        # ── Power limits ──────────────────────────────────────────────────────
+        # -- Power limits ------------------------------------------------------
         section("Power Draw Limits (W)")
         row("CPU max power",    "cpu_power_max",   self.cpu_power_max,   "W")
         row("GPU max power",    "gpu_power_max",   self.gpu_power_max,   "W")
         row("Total system max", "total_power_max", self.total_power_max, "W")
 
-        # ── Frame / latency ───────────────────────────────────────────────────
+        # -- Frame / latency ---------------------------------------------------
         section("Frame Timing & Latency")
         row("Frame time spike (1% high)", "frametime_max_ms", self.frametime_max_ms, "ms")
         row("Min FPS (0.1% low)",         "fps_min",          self.fps_min,          "FPS")
         row("Latency max",                "latency_max_ms",   self.latency_max_ms,   "ms")
 
-        # ── Misc ──────────────────────────────────────────────────────────────
+        # -- Misc --------------------------------------------------------------
         section("Miscellaneous")
         row("Fan stall threshold",          "fan_min_rpm",        self.fan_min_rpm,        "RPM")
 
-        # ── Drive health ──────────────────────────────────────────────────────
+        # -- Drive health ------------------------------------------------------
         section("Drive Health")
         row("Available spare min",          "drive_spare_min",    self.drive_spare_min,    "%")
         row("Remaining life min",           "drive_life_min",     self.drive_life_min,     "%")
 
-        # ── Memory ────────────────────────────────────────────────────────────
+        # -- Memory ------------------------------------------------------------
         section("Memory Load")
         row("RAM / VRAM load max",          "memory_load_max",    self.memory_load_max,    "%")
 
-        # ── Stability ─────────────────────────────────────────────────────────
+        # -- Stability ---------------------------------------------------------
         section("Stability Detection")
         row("Throttle sensitivity (0–1)",   "throttle_threshold", self.throttle_threshold, "")
         row("Vcore max droop",              "vcore_droop_max",    self.vcore_droop_max,    "V")
         row("Clock instability ratio",      "clock_instability",  self.clock_instability,  "std/mean")
 
-        # ── Hardware Signature Thresholds ─────────────────────────────────────
+        # -- Hardware Signature Thresholds -------------------------------------
         section("Hardware Signature Thresholds")
         row("CPU thermal trigger (% of limit)",  "sig_cpu_thermal_pct",    self.sig_cpu_thermal_pct,    "0–1")
         row("CPU thermal sustained samples",     "sig_cpu_thermal_samples",self.sig_cpu_thermal_samples,"")
@@ -1409,11 +1409,11 @@ class TelemetryApp:
         if series.empty:
             return False
 
-        # ── Exclusions ────────────────────────────────────────────────────────
+        # -- Exclusions --------------------------------------------------------
         if any(x in raw for x in _EXCLUDE_RAW) or any(x in name for x in _EXCLUDE_NAME):
             return False
 
-        # ── Frame timing / FPS ────────────────────────────────────────────────
+        # -- Frame timing / FPS ------------------------------------------------
         if 'FRAME TIME' in raw or 'FRAMETIME' in raw:
             if '1% HIGH' in raw and '0.1%' not in raw:
                 return series.max() > self.frametime_max_ms
@@ -1431,11 +1431,11 @@ class TelemetryApp:
         if '[MS]' in raw:
             return False
 
-        # ── Throttling ────────────────────────────────────────────────────────
+        # -- Throttling --------------------------------------------------------
         if any(x in raw for x in _THROTTLE_KW):
             return series.max() >= self.throttle_threshold
 
-        # ── Yes/No binary flags ───────────────────────────────────────────────
+        # -- Yes/No binary flags -----------------------------------------------
         if 'YES/NO' in raw:
             if 'DRIVE FAILURE' in raw or 'DRIVE WARNING' in raw:
                 return series.max() >= 1.0
@@ -1443,18 +1443,18 @@ class TelemetryApp:
                 return series.max() >= 1.0
             return False
 
-        # ── Total Errors ──────────────────────────────────────────────────────
+        # -- Total Errors ------------------------------------------------------
         if 'TOTAL ERRORS' in raw:
             return series.max() > 0
 
-        # ── Drive health ──────────────────────────────────────────────────────
+        # -- Drive health ------------------------------------------------------
         if 'AVAILABLE SPARE' in raw and '[%]' in raw:
             return series.min() < self.drive_spare_min
 
         if any(x in raw for x in _SMART_KW):
             return series.min() < self.drive_life_min
 
-        # ── [%] columns ───────────────────────────────────────────────────────
+        # -- [%] columns -------------------------------------------------------
         if '[%]' in raw:
             if 'LIMIT' in raw:
                 return False
@@ -1463,15 +1463,15 @@ class TelemetryApp:
             if 'DECODE' in raw or 'ENCODE' in raw or 'VIDEO' in raw or 'MEDIA' in raw:
                 return False
 
-        # ── WHEA / hardware errors ────────────────────────────────────────────
+        # -- WHEA / hardware errors --------------------------------------------
         if any(x in raw for x in _WHEA_KW):
             return series.max() > 0
 
-        # ── Drive / memory errors ─────────────────────────────────────────────
+        # -- Drive / memory errors ---------------------------------------------
         if any(x in raw for x in _ERROR_KW):
             return series.max() > 0
 
-        # ── Power draw ────────────────────────────────────────────────────────
+        # -- Power draw --------------------------------------------------------
         if '[W]' in raw and 'STATIC' not in raw and 'LIMIT' not in raw and 'PPT' not in raw:
             if 'CPU' in raw and self._sustained(col, self.cpu_power_max, n_samples=5):
                 return True
@@ -1480,7 +1480,7 @@ class TelemetryApp:
             if 'TOTAL' in raw and self._sustained(col, self.total_power_max, n_samples=5):
                 return True
 
-        # ── CPU PPT saturation ────────────────────────────────────────────────
+        # -- CPU PPT saturation ------------------------------------------------
         if 'CPU PPT' in raw and '[W]' in raw and 'LIMIT' not in raw:
             ppt_limit_col = next(
                 (c for c in self.df.columns if 'PPT' in c.upper() and 'LIMIT' in c.upper()
@@ -1490,7 +1490,7 @@ class TelemetryApp:
                 if limit_val > 0 and series.mean() >= limit_val * 0.98:
                     return True
 
-        # ── Voltage rails (+12V, +5V, +3.3V) ────────────────────────────────
+        # -- Voltage rails (+12V, +5V, +3.3V) --------------------------------
         for rail, (low, high) in self.volt_rails.items():
             if rail in raw:
                 if any(x in raw for x in _RAIL_SKIP):
@@ -1501,7 +1501,7 @@ class TelemetryApp:
                 return series.min() < low or series.max() > high
 
 
-        # ── CPU Vcore ─────────────────────────────────────────────────────────
+        # -- CPU Vcore ---------------------------------------------------------
         # Only actual Vcore sensors — NOT per-core VID (handled separately below)
         if 'VCORE' in raw or 'CPU CORE VOLTAGE' in raw:
             lo, hi = self.cpu_volt_range
@@ -1510,14 +1510,14 @@ class TelemetryApp:
             if out_of_range or drooping:
                 return True
 
-        # ── Per-core / aggregate VID ──────────────────────────────────────────
+        # -- Per-core / aggregate VID ------------------------------------------
         # VID swing across cores is normal power management — do NOT apply droop.
         # Only flag if outside absolute safe voltage range.
         if 'VID' in raw and 'GPU' not in raw and 'VIDEO' not in raw:
             lo, hi = self.cpu_volt_range
             return series.min() < lo or series.max() > hi
 
-        # ── DRAM voltage ──────────────────────────────────────────────────────
+        # -- DRAM voltage ------------------------------------------------------
         # Exclude GPU auxiliary rails (VDDCI_MEM, VDDIO, VDDCI etc.) —
         # these are GPU-side rails that run at lower voltages than system DRAM
         if ('DRAM VOLTAGE' in raw or 'DIMM VOLTAGE' in raw or 'MEMORY VOLTAGE' in raw
@@ -1527,18 +1527,18 @@ class TelemetryApp:
             lo, hi = self.dram_volt_range
             return series.min() < lo or series.max() > hi
 
-        # ── GPU core voltage ─────────────────────────────────────────────────
+        # -- GPU core voltage -------------------------------------------------
         if 'GPU CORE VOLTAGE' in raw and 'GFX' not in raw and 'VDDCR' not in raw:
             return series.max() > self.gpu_volt_max
 
-        # ── Clock instability ─────────────────────────────────────────────────
+        # -- Clock instability -------------------------------------------------
         if 'CPU CLOCK' in raw or 'GPU CLOCK' in raw or 'CORE CLOCK' in raw:
             if 'EFFECTIVE' not in raw and 'REQUESTED' not in raw \
                     and 'CORE #' not in raw and 'LIMIT' not in raw:
                 if series.mean() > 100 and (series.std() / series.mean()) > self.clock_instability:
                     return True
 
-        # ── Fan speeds ───────────────────────────────────────────────────────
+        # -- Fan speeds -------------------------------------------------------
         # GPU fans use zero-RPM idle curves — going to 0 at idle is expected.
         # For GPU fans only flag if the fan never spun while GPU was very hot.
         # For all other fans flag if they were spinning then stalled.
@@ -1553,7 +1553,7 @@ class TelemetryApp:
                 if series.max() > self.fan_min_rpm and series.min() < self.fan_min_rpm:
                     return True
 
-        # ── Temperatures ─────────────────────────────────────────────────────
+        # -- Temperatures -----------------------------------------------------
         if any(x in name for x in _TEMP_TRIGGERS):
             matched_limit = None
             matched_len   = 0
@@ -1572,13 +1572,13 @@ class TelemetryApp:
                         break
             return self._sustained(col, matched_limit if matched_limit is not None else 90.0, n_samples=3)
 
-        # ── Physical memory load ──────────────────────────────────────────────
+        # -- Physical memory load ----------------------------------------------
         if 'PHYSICAL MEMORY' in raw and 'LOAD' in raw:
             return series.max() >= self.memory_load_max
 
         return False
 
-    # ── Sustained spike helper ────────────────────────────────────────────────
+    # -- Sustained spike helper ------------------------------------------------
     def _sustained(self, col: str, threshold: float, n_samples: int = 5,
                    above: bool = True) -> bool:
         """Return True only if the column exceeds threshold for at least
@@ -1637,9 +1637,9 @@ class TelemetryApp:
                 'evidence': clean_ev
             })
 
-        # ── SENSOR MAPPING ───────────────────────────────────────────────────────────
+        # -- SENSOR MAPPING -----------------------------------------------------------
 
-        # ── CPU Metrics ───────────────────────────────────────────────────────────────
+        # -- CPU Metrics ---------------------------------------------------------------
 
         cpu_temp      = self._col('TCTL') or self._col('TDIE') or self._col('PROZESSOR', 'TEMPERATUR') or self._col('TEMPERATUR') or self._col('CPU')
        #cpu_hotspot   = self._col('HOT', 'SPOT') or self._col('GPU', 'HOT')
@@ -1686,7 +1686,7 @@ class TelemetryApp:
         uclk_col = next((c for c in df.columns if 'UCLK' in c), None)
         mclk_col = self._col('MCLK') or self._col('MEMORY CLOCK') or self._col('DRAM CLOCK') or None
 
-        # ── Sensor Debug ───────────────────────────────────────────────────────────────
+        # -- Sensor Debug ---------------------------------------------------------------
 
         # def dbg(name, value):
         #     status = "ok" if value is not none else "miss"
@@ -2843,6 +2843,434 @@ class TelemetryApp:
         ttk.Button(btn_f, text="Close",
                    command=dialog.destroy).pack(side=tk.LEFT, expand=True, fill=tk.X)
 
+    def _export_html_report(self):
+        """Generate a self-contained HTML session report with hardware info,
+        per-sensor stats, detected issues, signature hits, and chart screenshots."""
+        import io
+        import base64
+        import datetime
+        import html as html_mod
+        import traceback
+
+        f_path = filedialog.asksaveasfilename(
+            defaultextension=".html",
+            filetypes=[("HTML Report", "*.html")],
+            initialfile=f"RESYNC_Report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        )
+        if not f_path:
+            return
+
+        # -- Blocking "please wait" dialog ----------------------------------
+        is_dark = self.is_dark
+        wait_win = tk.Toplevel(self.root)
+        wait_win.title("Exporting Report")
+        wait_win.resizable(False, False)
+        wait_win.grab_set()
+        wait_win.configure(bg="#121212" if is_dark else "#f0f0f0")
+        wait_win.overrideredirect(True)   # borderless
+
+        # Centre over main window
+        self.root.update_idletasks()
+        pw, ph = 320, 110
+        rx = self.root.winfo_x() + (self.root.winfo_width()  // 2) - pw // 2
+        ry = self.root.winfo_y() + (self.root.winfo_height() // 2) - ph // 2
+        wait_win.geometry(f"{pw}x{ph}+{rx}+{ry}")
+
+        outer = tk.Frame(wait_win, bg="#1f6aa5", padx=2, pady=2)
+        outer.pack(fill=tk.BOTH, expand=True)
+        inner = tk.Frame(outer, bg="#121212" if is_dark else "#f8f9fa", padx=20, pady=18)
+        inner.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(inner, text="📄  Generating HTML Report",
+                 font=('Segoe UI', 11, 'bold'),
+                 bg="#121212" if is_dark else "#f8f9fa",
+                 fg="#e0e0e0" if is_dark else "#212529").pack(anchor='w')
+        status_var = tk.StringVar(value="Preparing data…")
+        tk.Label(inner, textvariable=status_var,
+                 font=('Segoe UI', 9),
+                 bg="#121212" if is_dark else "#f8f9fa",
+                 fg="#888").pack(anchor='w', pady=(6, 0))
+
+        # Animated progress dots
+        dot_var = tk.StringVar(value="●○○○○")
+        _DOT_FRAMES = ["●○○○○", "○●○○○", "○○●○○", "○○○●○", "○○○○●"]
+        dot_label = tk.Label(inner, textvariable=dot_var,
+                             font=('Segoe UI', 9),
+                             bg="#121212" if is_dark else "#f8f9fa",
+                             fg="#1f6aa5")
+        dot_label.pack(anchor='w', pady=(4, 0))
+
+        _dot_idx = [0]
+        def _animate_dots():
+            _dot_idx[0] = (_dot_idx[0] + 1) % len(_DOT_FRAMES)
+            dot_var.set(_DOT_FRAMES[_dot_idx[0]])
+            if wait_win.winfo_exists():
+                wait_win.after(120, _animate_dots)
+        _animate_dots()
+
+        def _set_status(msg: str):
+            status_var.set(msg)
+            wait_win.update_idletasks()
+
+        self.root.update_idletasks()
+
+        try:
+            df   = self.df
+            cols = list(df.columns)
+            sel  = [c for c, v in self.vars.items() if v.get() and c in df.columns]
+            x_vals, ts, use_time = self._get_x_axis()
+            colors_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+            # -- helpers ----------------------------------------------------
+            def _fig_to_b64(fig) -> str:
+                buf = io.BytesIO()
+                fig.savefig(buf, format='png', dpi=150, bbox_inches='tight',
+                            facecolor='#1a1a2e')
+                buf.seek(0)
+                return base64.b64encode(buf.read()).decode()
+
+            def _chart_html(b64: str, caption: str) -> str:
+                return (f'<figure><img src="data:image/png;base64,{b64}" '
+                        f'alt="{html_mod.escape(caption)}">'
+                        f'<figcaption>{html_mod.escape(caption)}</figcaption></figure>')
+
+            def _make_chart(sensor_cols: list, title: str, figsize=(13, 3.5)) -> str:
+                fig, ax = plt.subplots(figsize=figsize)
+                fig.patch.set_facecolor('#1a1a2e')
+                ax.set_facecolor('#0f0f23')
+                for i, col in enumerate(sensor_cols):
+                    if col not in df.columns:
+                        continue
+                    ax.plot(x_vals, df[col], lw=1.2,
+                            color=colors_cycle[i % len(colors_cycle)],
+                            label=col[:60])
+                ax.set_title(title, color='#a0c4ff', fontsize=9, pad=4)
+                ax.tick_params(colors='#ccc', labelsize=7)
+                ax.grid(True, ls=':', alpha=0.3, color='#444')
+                for spine in ax.spines.values():
+                    spine.set_edgecolor('#333')
+                leg = ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1),
+                                fontsize=6, frameon=False)
+                if leg:
+                    for t in leg.get_texts():
+                        t.set_color('#ddd')
+                if use_time:
+                    import matplotlib.ticker as ticker
+                    ax.xaxis.set_major_formatter(
+                        ticker.FuncFormatter(lambda v, _: self._format_elapsed(v)))
+                    ax.tick_params(axis='x', labelrotation=20)
+                fig.subplots_adjust(right=0.72)
+                b64 = _fig_to_b64(fig)
+                plt.close(fig)
+                return _chart_html(b64, title)
+
+            # -- 1. Selected sensors chart -----------------------------------
+            _set_status("Rendering selected sensor chart…")
+            charts_selected_html = ""
+            if sel:
+                charts_selected_html = _make_chart(
+                    sel, "Selected Sensors",
+                    figsize=(13, max(3.5, len(sel) * 0.35)))
+
+            # -- 2. Category overview charts ---------------------------------
+            _set_status("Rendering category charts…")
+            cat_charts_html = ""
+            cat_groups: dict = {}
+            for col in cols:
+                cat = self._get_category(col)
+                cat_groups.setdefault(cat, []).append(col)
+
+            for cat_name in self.sorted_cats:
+                group = cat_groups.get(cat_name, [])
+                if not group:
+                    continue
+                chunk = group[:20]
+                cat_charts_html += _make_chart(
+                    chunk, f"Category: {cat_name}",
+                    figsize=(13, max(3.5, len(chunk) * 0.28)))
+
+            # -- 2b. PSU Rail charts (+12V, +5V, +3.3V) ---------------------
+            _set_status("Rendering PSU rail charts…")
+            psu_charts_html = ""
+            _RAIL_KEYWORDS = {
+                '+12V':  ['12V', '12 V'],
+                '+5V':   ['5V', '5 V'],
+                '+3.3V': ['3.3V', '3.3 V', '3V3'],
+            }
+            # Tokens that disqualify a column even if the rail keyword matches
+            _RAIL_EXCL = ['[W]', '[A]', 'POWER', 'CURRENT', 'WATT',
+                          'VID', 'OFFSET', 'LIMIT', 'PPT', 'TDP',
+                          'PCIE', 'INPUT', 'GPU', 'HPWR', 'VDDQ', 'FBVDD']
+            for rail_name, keywords in _RAIL_KEYWORDS.items():
+                rail_cols = []
+                for c in cols:
+                    if c not in df.columns:
+                        continue
+                    cu = c.upper()
+                    # Must end with a voltage unit
+                    if '[V]' not in cu:
+                        continue
+                    # Must not match any exclusion token
+                    if any(ex in cu for ex in _RAIL_EXCL):
+                        continue
+                    # Must contain the rail keyword
+                    if any(k.upper() in cu for k in keywords):
+                        rail_cols.append(c)
+                if not rail_cols:
+                    continue
+                lo, hi = self.volt_rails.get(rail_name, (None, None))
+
+                def _make_rail_chart(rcols, rtitle, rlo, rhi):
+                    fig, ax = plt.subplots(figsize=(13, 3.5))
+                    fig.patch.set_facecolor('#1a1a2e')
+                    ax.set_facecolor('#0f0f23')
+                    for i, col in enumerate(rcols):
+                        ax.plot(x_vals, df[col], lw=1.2,
+                                color=colors_cycle[i % len(colors_cycle)],
+                                label=col[:60])
+                    if rlo is not None and rhi is not None:
+                        ax.axhline(rlo, color='#ff4d4d', ls='--', lw=1, alpha=0.7,
+                                   label=f'Min spec ({rlo}V)')
+                        ax.axhline(rhi, color='#ff4d4d', ls='--', lw=1, alpha=0.7,
+                                   label=f'Max spec ({rhi}V)')
+                        ax.axhspan(rlo - 0.5, rlo, color='#ff4d4d', alpha=0.07)
+                        ax.axhspan(rhi, rhi + 0.5, color='#ff4d4d', alpha=0.07)
+                    ax.set_title(rtitle, color='#a0c4ff', fontsize=9, pad=4)
+                    ax.tick_params(colors='#ccc', labelsize=7)
+                    ax.grid(True, ls=':', alpha=0.3, color='#444')
+                    for spine in ax.spines.values():
+                        spine.set_edgecolor('#333')
+                    leg = ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1),
+                                    fontsize=6, frameon=False)
+                    if leg:
+                        for t in leg.get_texts():
+                            t.set_color('#ddd')
+                    if use_time:
+                        import matplotlib.ticker as ticker
+                        ax.xaxis.set_major_formatter(
+                            ticker.FuncFormatter(lambda v, _: self._format_elapsed(v)))
+                        ax.tick_params(axis='x', labelrotation=20)
+                    fig.subplots_adjust(right=0.72)
+                    b64 = _fig_to_b64(fig)
+                    plt.close(fig)
+                    return _chart_html(b64, rtitle)
+
+                spec_str = f"  |  Spec: {lo}V \u2013 {hi}V" if lo is not None else ""
+                psu_charts_html += _make_rail_chart(
+                    rail_cols, f"PSU Rail: {rail_name}{spec_str}", lo, hi)
+
+            # -- 3. Hardware info --------------------------------------------
+            _set_status("Extracting hardware info…")
+            hw = self.analyzer.extract_hardware_names()
+            _CAT_ICONS = {
+                'System / Motherboard': '\U0001f527', 'CPU': '\U0001f5a5',
+                'iGPU (Integrated Graphics)': '\U0001f4a1', 'GPU': '\U0001f3ae',
+                'Memory (RAM)': '\U0001f4be', 'Memory Timings': '\u23f1',
+                'Storage': '\U0001f4bf', 'Network': '\U0001f310',
+                'Battery': '\U0001f50b', 'PresentMon (Frame Timing)': '\U0001f4ca',
+                'Chipset': '\u2699', 'Other': '\U0001f4e1',
+            }
+            hw_rows = ""
+            for cat, names in hw.items():
+                icon = _CAT_ICONS.get(cat, '\U0001f4e1')
+                for name in names:
+                    hw_rows += (f'<tr><td class="hw-cat">{icon} {html_mod.escape(cat)}</td>'
+                                f'<td>{html_mod.escape(name)}</td></tr>')
+            hw_section = (
+                f'<table class="hw-table"><thead><tr><th>Category</th><th>Device</th>'
+                f'</tr></thead><tbody>{hw_rows}</tbody></table>'
+            ) if hw_rows else '<p class="muted">No hardware names detected in this CSV.</p>'
+
+            # -- 4. Session metadata -----------------------------------------
+            generated_at  = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            csv_name      = html_mod.escape(str(self.analyzer.path).replace('\\', '/').split('/')[-1])
+            sample_count  = len(df)
+            duration_str  = "N/A"
+            sample_rate_str = "N/A"
+            if use_time and len(x_vals) > 1:
+                duration_str = self._format_elapsed(float(x_vals[-1] - x_vals[0]))
+                intervals = [x_vals[i+1] - x_vals[i] for i in range(min(20, len(x_vals)-1))]
+                avg_iv = sum(intervals) / len(intervals)
+                sample_rate_str = f"{avg_iv:.2f}s / sample"
+
+            # -- 5. Per-sensor stats -----------------------------------------
+            stat_rows = ""
+            for col in sel:
+                if col not in df.columns:
+                    continue
+                s = df[col].dropna()
+                if s.empty:
+                    continue
+                is_crit = self._is_critical(col)
+                flag = ' <span class="flag-crit">\u26a0 OUT OF SPEC</span>' if is_crit else ''
+                stat_rows += (
+                    f'<tr class="{"crit-row" if is_crit else ""}">'
+                    f'<td>{html_mod.escape(col)}{flag}</td>'
+                    f'<td>{s.min():.2f}</td><td>{s.mean():.2f}</td>'
+                    f'<td>{s.max():.2f}</td><td>{s.std():.2f}</td></tr>'
+                )
+            stats_section = (
+                f'<table class="stat-table"><thead><tr>'
+                f'<th>Sensor</th><th>Min</th><th>Avg</th><th>Max</th><th>Std Dev</th>'
+                f'</tr></thead><tbody>{stat_rows}</tbody></table>'
+            ) if stat_rows else '<p class="muted">No sensors selected.</p>'
+
+            # -- 6. Signatures -----------------------------------------------
+            _set_status("Running hardware signature analysis…")
+            sigs = self._run_signatures()
+            _SEV_CLASS = {'CRITICAL': 'sev-crit', 'WARNING': 'sev-warn', 'INFO': 'sev-info'}
+            _SEV_ICON  = {'CRITICAL': '\U0001f534', 'WARNING': '\U0001f7e1', 'INFO': '\U0001f535'}
+            sig_cards = ""
+            if sigs:
+                for s in sorted(sigs, key=lambda x: ['CRITICAL','WARNING','INFO'].index(x.get('severity','INFO'))):
+                    sev  = s.get('severity', 'INFO')
+                    cls  = _SEV_CLASS.get(sev, 'sev-info')
+                    icon = _SEV_ICON.get(sev, '\U0001f535')
+                    ev_items = "".join(f'<li>{html_mod.escape(str(e))}</li>'
+                                       for e in s.get('evidence', []))
+                    ev_block = f'<ul class="ev-list">{ev_items}</ul>' if ev_items else ''
+                    sig_cards += (
+                        f'<div class="sig-card {cls}">'
+                        f'<div class="sig-title">{icon} {html_mod.escape(s["name"])} '
+                        f'<span class="sev-badge">{sev}</span></div>'
+                        f'<div class="sig-desc">{html_mod.escape(s.get("description",""))}</div>'
+                        f'{ev_block}</div>'
+                    )
+            else:
+                sig_cards = '<p class="muted all-clear">\u2705 No issues detected. All signatures passed.</p>'
+
+            # -- 7. Out-of-spec sensors --------------------------------------
+            oos_rows = ""
+            for col in cols:
+                if self._is_critical(col) and col in df.columns:
+                    s = df[col].dropna()
+                    if s.empty:
+                        continue
+                    oos_rows += (f'<tr><td>{html_mod.escape(col)}</td>'
+                                 f'<td>{s.min():.2f}</td><td>{s.mean():.2f}</td>'
+                                 f'<td class="val-crit">{s.max():.2f}</td></tr>')
+            oos_section = (
+                f'<table class="stat-table"><thead><tr>'
+                f'<th>Sensor</th><th>Min</th><th>Avg</th><th>Peak</th>'
+                f'</tr></thead><tbody>{oos_rows}</tbody></table>'
+            ) if oos_rows else '<p class="muted all-clear">\u2705 No out-of-spec sensors detected.</p>'
+
+            crit_count = sum(1 for s in sigs if s.get('severity') == 'CRITICAL')
+            warn_count = sum(1 for s in sigs if s.get('severity') == 'WARNING')
+            info_count = sum(1 for s in sigs if s.get('severity') == 'INFO')
+
+            # -- 8. Assemble HTML --------------------------------------------
+            html_out = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RESYNC.ERR Session Report \u2014 {csv_name}</title>
+<style>
+:root{{--bg:#0d0d1a;--bg2:#13132b;--bg3:#1a1a38;--accent:#4f8ef7;--accent2:#a78bfa;
+      --text:#e2e8f0;--muted:#64748b;--border:#2d2d5a;--crit:#ff4d4d;--warn:#f59e0b;
+      --info:#38bdf8;--good:#22c55e;--radius:10px;}}
+*{{box-sizing:border-box;margin:0;padding:0;}}
+body{{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.6;}}
+.page-wrap{{max-width:1300px;margin:0 auto;padding:32px 24px;}}
+.report-header{{background:linear-gradient(135deg,#1a1a38 0%,#0d0d1a 100%);border:1px solid var(--border);border-radius:var(--radius);padding:32px;margin-bottom:28px;}}
+.report-header h1{{font-size:26px;color:var(--accent);letter-spacing:1px;}}
+.report-header .sub{{color:var(--muted);font-size:13px;margin-top:6px;}}
+.badges{{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}}
+.badge{{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;}}
+.badge-crit{{background:#3d0000;color:var(--crit);border:1px solid var(--crit);}}
+.badge-warn{{background:#2d1800;color:var(--warn);border:1px solid var(--warn);}}
+.badge-info{{background:#001a2d;color:var(--info);border:1px solid var(--info);}}
+.badge-ok{{background:#001a0d;color:var(--good);border:1px solid var(--good);}}
+.meta-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:20px;}}
+.meta-item{{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 16px;}}
+.meta-item .label{{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;}}
+.meta-item .value{{font-size:18px;font-weight:700;color:var(--accent);margin-top:2px;}}
+.section{{margin-bottom:32px;}}
+.section-title{{font-size:16px;font-weight:700;color:var(--accent2);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:16px;letter-spacing:0.5px;}}
+.hw-table,.stat-table{{width:100%;border-collapse:collapse;font-size:13px;}}
+.hw-table th,.stat-table th{{background:var(--bg3);color:var(--accent);padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;}}
+.hw-table td,.stat-table td{{padding:7px 12px;border-bottom:1px solid #1e1e3a;color:var(--text);}}
+.hw-table tr:hover td,.stat-table tr:hover td{{background:var(--bg3);}}
+.hw-cat{{color:var(--muted);font-size:12px;white-space:nowrap;}}
+.crit-row td{{background:#1a0000!important;}}
+.val-crit{{color:var(--crit)!important;font-weight:700;}}
+.flag-crit{{color:var(--crit);font-size:11px;font-weight:600;}}
+.sig-card{{border-radius:var(--radius);padding:16px 20px;margin-bottom:12px;border-left:4px solid transparent;}}
+.sev-crit{{background:#1a0505;border-color:var(--crit);}}
+.sev-warn{{background:#1a1005;border-color:var(--warn);}}
+.sev-info{{background:#051525;border-color:var(--info);}}
+.sig-title{{font-size:15px;font-weight:700;margin-bottom:6px;}}
+.sig-desc{{color:#a0b0c0;font-size:13px;margin-bottom:8px;}}
+.sev-badge{{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;vertical-align:middle;margin-left:6px;}}
+.sev-crit .sev-badge{{background:var(--crit);color:#000;}}
+.sev-warn .sev-badge{{background:var(--warn);color:#000;}}
+.sev-info .sev-badge{{background:var(--info);color:#000;}}
+.ev-list{{margin:8px 0 0 16px;color:#94a3b8;font-size:12px;font-family:monospace;}}
+.ev-list li{{margin-bottom:2px;}}
+figure{{margin-bottom:20px;}}
+figure img{{width:100%;border-radius:8px;border:1px solid var(--border);display:block;}}
+figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}}
+.muted{{color:var(--muted);font-style:italic;}}
+.all-clear{{color:var(--good);font-style:normal;font-weight:600;}}
+.toc{{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:28px;}}
+.toc a{{display:block;padding:3px 0;font-size:13px;text-decoration:none;color:var(--accent);}}
+.toc a:hover{{color:var(--accent2);}}
+.footer{{text-align:center;color:var(--muted);font-size:12px;margin-top:48px;border-top:1px solid var(--border);padding-top:16px;}}
+</style>
+</head>
+<body><div class="page-wrap">
+<div class="report-header">
+  <h1>RESYNC.ERR \u2014 Session Report</h1>
+  <div class="sub">Generated {generated_at} &nbsp;&middot;&nbsp; Source: <strong>{csv_name}</strong></div>
+  <div class="badges">
+    {'<span class="badge badge-crit">\U0001f534 ' + str(crit_count) + ' Critical</span>' if crit_count else ''}
+    {'<span class="badge badge-warn">\U0001f7e1 ' + str(warn_count) + ' Warning</span>' if warn_count else ''}
+    {'<span class="badge badge-info">\U0001f535 ' + str(info_count) + ' Info</span>' if info_count else ''}
+    {'<span class="badge badge-ok">\u2705 All Clear</span>' if not sigs else ''}
+  </div>
+  <div class="meta-grid">
+    <div class="meta-item"><div class="label">Duration</div><div class="value">{duration_str}</div></div>
+    <div class="meta-item"><div class="label">Samples</div><div class="value">{sample_count:,}</div></div>
+    <div class="meta-item"><div class="label">Sample Rate</div><div class="value">{sample_rate_str}</div></div>
+    <div class="meta-item"><div class="label">Sensors in File</div><div class="value">{len(cols):,}</div></div>
+    <div class="meta-item"><div class="label">Selected Sensors</div><div class="value">{len(sel)}</div></div>
+    <div class="meta-item"><div class="label">Signature Hits</div><div class="value">{len(sigs)}</div></div>
+  </div>
+</div>
+<div class="toc">
+  <strong style="color:var(--accent2)">Contents</strong>
+  <a href="#hw">\U0001f527 Detected Hardware</a>
+  <a href="#issues">\U0001f6a8 Issues &amp; Signature Hits</a>
+  <a href="#oos">\u26a0 Out-of-Spec Sensors</a>
+  <a href="#charts-sel">\U0001f4c8 Selected Sensor Charts</a>
+  <a href="#psu-rails">\U0001f50c PSU Rail Voltages</a>
+  <a href="#charts-cat">\U0001f4ca Category Overview Charts</a>
+  <a href="#stats">\U0001f4cb Per-Sensor Statistics</a>
+</div>
+<div class="section" id="hw"><div class="section-title"><span>\U0001f527</span> Detected Hardware</div>{hw_section}</div>
+<div class="section" id="issues"><div class="section-title"><span>\U0001f6a8</span> Issues &amp; Signature Hits</div>{sig_cards}</div>
+<div class="section" id="oos"><div class="section-title"><span>\u26a0</span> Out-of-Spec Sensors</div>{oos_section}</div>
+<div class="section" id="charts-sel"><div class="section-title"><span>\U0001f4c8</span> Selected Sensor Charts</div>{charts_selected_html if charts_selected_html else '<p class="muted">No sensors selected.</p>'}</div>
+<div class="section" id="psu-rails"><div class="section-title"><span>\U0001f50c</span> PSU Rail Voltages</div>{psu_charts_html if psu_charts_html else '<p class="muted">No PSU rail voltage columns detected (+12V, +5V, +3.3V).</p>'}</div>
+<div class="section" id="charts-cat"><div class="section-title"><span>\U0001f4ca</span> Category Overview Charts</div>{cat_charts_html if cat_charts_html else '<p class="muted">No data.</p>'}</div>
+<div class="section" id="stats"><div class="section-title"><span>\U0001f4cb</span> Per-Sensor Statistics</div>{stats_section}</div>
+<div class="footer">RESYNC.ERR v{CURRENT_VERSION} &nbsp;&middot;&nbsp; Report generated {generated_at}</div>
+</div></body></html>"""
+
+            _set_status("Writing report file…")
+            with open(f_path, 'w', encoding='utf-8') as fh:
+                fh.write(html_out)
+            wait_win.destroy()
+            self.show_toast(f"Report saved: {str(f_path).replace(chr(92), '/').split('/')[-1]}")
+
+        except Exception as e:
+            if wait_win.winfo_exists():
+                wait_win.destroy()
+            messagebox.showerror("Report Export Error",
+                                 f"{type(e).__name__}: {e}\n\n{traceback.format_exc()[-1000:]}")
+
+
     def _open_diagnosis(self):
         """Run signature analysis and display results in a themed dialog."""
         self.show_toast("Analyzing signatures...")
@@ -3056,6 +3484,7 @@ class TelemetryApp:
         ttk.Button(btn_frame, text="New CSV", command=self._import_new_csv).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
         ttk.Button(btn_frame, text="Clear", command=self._clear_all).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
         ttk.Button(btn_frame, text="Export PNG", command=self._export, style="Action.TButton").pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+        ttk.Button(btn_frame, text="📄 HTML Report", command=self._export_html_report, style="Action.TButton").pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
 
         search_f = ttk.LabelFrame(self.left, text=" Sensor Selection ", padding=8)
         search_f.pack(fill=tk.BOTH, expand=True, pady=5)
