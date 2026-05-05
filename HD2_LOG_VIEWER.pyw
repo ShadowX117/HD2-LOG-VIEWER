@@ -237,6 +237,8 @@ class TelemetryAnalyzer:
         for col in self.df.columns:
             if col == self.time_col:
                 continue  # Keep time column as-is
+            if '[Yes/No]' in col or '[yes/no]' in col.lower():
+                continue
             try:
                 s = self.df[col].astype(str).str.replace(',', '.', regex=False)
                 cleaned = s.str.replace(r'[^\d\.\-eE]', '', regex=True)
@@ -253,7 +255,15 @@ class TelemetryAnalyzer:
             else:
                 break
         self.df.ffill(inplace=True)
-        
+
+        for col in self.df.columns:
+            if '[Yes/No]' in col or '[yes/no]' in col.lower():
+                self.df[col] = (
+                    self.df[col].astype(str).str.strip().str.lower()
+                    .map({'yes': 1.0, 'no': 0.0, '1': 1.0, '0': 0.0,
+                          '1.0': 1.0, '0.0': 0.0, 'true': 1.0, 'false': 0.0})
+                )
+
         # Keep time_series in sync with df after row trimming
         if self.time_series is not None:
             self.time_series = self.time_series.iloc[:len(self.df)].reset_index(drop=True)
@@ -278,8 +288,7 @@ class TelemetryAnalyzer:
         fraction of non-empty cells match the HWiNFO device-label pattern, then
         collect unique device names from that row.
         """
-        # -- Known HWiNFO type-tag prefixes ---------------------------------
-        # These appear before the first ": " in each label cell.
+        # Known HWiNFO type-tag prefixes
         _KNOWN_TAGS = re.compile(
             r'^(CPU|iGPU|dGPU|GPU|DDR\d*\s*DIMM|S\.M\.A\.R\.T\.|Drive|'
             r'Network|Battery|System|PresentMon|Memory Timings|'
@@ -1501,10 +1510,36 @@ class TelemetryApp:
 
         # -- Yes/No binary flags -----------------------------------------------
         if 'YES/NO' in raw:
-            if 'DRIVE FAILURE' in raw or 'DRIVE WARNING' in raw:
+            _ALWAYS_CRIT = (
+                'DRIVE FAILURE', 'DRIVE FAIL',
+                'CRITICAL TEMPERATURE', 'CORE CRITICAL',
+                'HARDWARE ERROR', 'WHEA',
+                'POWER LIMIT EXCEEDED',
+                'PMIC HIGH TEMPERATURE', 'PMIC OVER VOLTAGE', 'PMIC UNDER VOLTAGE',
+                'FATAL ERROR',
+            )
+            if any(k in raw for k in _ALWAYS_CRIT):
                 return series.max() >= 1.0
-            if ('THERMAL' in raw or 'POWER' in raw) and 'PERFORMANCE LIMIT' in raw:
-                return series.max() >= 1.0
+
+            _WARN_THRESH = (
+                'THERMAL THROTTL', 'THERMAL LIMIT',
+                'POWER LIMIT', 'PACKAGE POWER', 'POWER EXCEEDED',
+                'PROCHOT', 'VR THERMAL', 'VR TDC', 'RUNNING AVERAGE THERMAL',
+                'MAX TURBO', 'TURBO ATTENUATION', 'THERMAL VELOCITY',
+                'RESIDENCY STATE REGULATION',
+                'PERFORMANCE LIMIT - POWER', 'PERFORMANCE LIMIT - THERMAL',
+                'PERFORMANCE LIMIT - RELIABILITY', 'PERFORMANCE LIMIT - MAX',
+                'PERFORMANCE LIMIT - UTILIZATION',
+                'PPT LIMIT', 'TDC LIMIT', 'EDC LIMIT',
+                'SOC THROTTLE', 'GFX THROTTLE',
+                'DRIVE WARNING', 'DRIVE WARN',
+                'POWER SUPPLY', 'HARDWARE LIMIT', 'SOFTWARE LIMIT',
+                'AVG. POWER', 'BURST POWER', 'CURRENT (PL',
+            )
+            if any(k in raw for k in _WARN_THRESH):
+                # Flag if triggered in more than 1% of samples
+                return series.max() >= 1.0 and (series >= 1.0).mean() > 0.01
+
             return False
 
         # -- Total Errors ------------------------------------------------------
@@ -3917,167 +3952,392 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                     return {c for c in cols if any(k in c.upper() for k in kw)}
 
                 def _sensors_for_signature(sig_name: str) -> set:
-                    """Return the set of df column names most relevant to a given signature."""
+                    """Return df columns relevant to a given signature.
+                    Uses _any() for OR matching (any keyword) and _cols() for AND matching
+                    (all keywords must appear). Both are case-insensitive substring matches."""
                     m = {
+
+                        # -- CPU ------------------------------------------------------
                         "CPU Thermal Throttling": (
                             _any("TDIE", "TCTL", "TJMAX", "PROCHOT", "THROTTL",
-                                 "CPU PACKAGE [", "CORE TEMP", "CPU TEMP") |
+                                 "CPU PACKAGE [", "CPU PACKAGE TEMP", "PACKAGE TEMP",
+                                 "CORE TEMP", "CPU TEMP", "CPU TEMPERATURE",
+                                 "CORE MAX", "CORE DISTANCE", "DISTANCE TO TJMAX",
+                                 "CPU HOT", "THERMAL THROTTL", "CPU DIE",
+                                 "CCD TEMP", "CCD1", "CCD2", "IOD TEMP", "CPU CCD",
+                                 "P-CORE", "E-CORE", "RING TEMP",
+                                 "PAKET", "KERN") |
                             _cols("CPU", "POWER") | _cols("CORE", "DISTANCE")
                         ),
+
                         "CPU Power Limit Reached": (
-                            _any("PL1", "PL2", "PPT", "POWER LIMIT", "THROTTL", "PROCHOT") |
-                            _cols("CPU", "POWER") | _cols("CPU", "PACKAGE", "POWER")
+                            _any("PL1", "PL2", "PL3", "PL4", "PPT", "EDC", "TDC",
+                                 "POWER LIMIT", "THROTTL", "PROCHOT",
+                                 "PACKAGE POWER LIMIT", "CPU POWER LIMIT",
+                                 "TURBO POWER", "POWER LIMIT EXCEEDED",
+                                 "IA LIMIT", "GT LIMIT", "RING LIMIT",
+                                 "RUNNING AVERAGE THERMAL", "RAPL",
+                                 "PERFORMANCE LIMIT - POWER",
+                                 "PERFORMANCE LIMIT - THERMAL",
+                                 "CURRENT CDTP") |
+                            _cols("CPU", "POWER") | _cols("CPU", "PACKAGE", "POWER") |
+                            _cols("IA", "POWER")
                         ),
+
                         "CPU Bottleneck": (
                             _any("TOTAL CPU", "CPU USAGE", "CPU LOAD", "CPU UTIL",
-                                 "GPU USAGE", "GPU CORE LOAD", "GPU LOAD")
+                                 "CPU AUSLASTUNG", "CPU BELASTUNG",
+                                 "GPU USAGE", "GPU CORE LOAD", "GPU LOAD",
+                                 "GPU AUSLASTUNG", "GPU CORE USAGE",
+                                 "MAX CPU", "CPU THREAD", "THREAD USAGE")
                         ),
-                        "GPU Overheating (Hotspot)": (
-                            _any("GPU TEMPERATURE", "GPU HOT", "GPU JUNCTION",
-                                 "GPU THERMAL", "HOTSPOT", "HOT SPOT") |
-                            _cols("GPU", "POWER") | _cols("GPU", "CLOCK")
-                        ),
-                        "GPU Thermal Warning": (
-                            _any("GPU TEMPERATURE", "GPU HOT", "GPU JUNCTION",
-                                 "GPU THERMAL", "HOTSPOT", "HOT SPOT")
-                        ),
-                        "GPU VRAM Overflow Analysis": (
-                            _any("VRAM", "GPU MEMORY", "D3D MEMORY", "GPU MEM",
-                                 "MEMORY ALLOCATED", "VIRTUAL MEMORY", "GPU D3D")
-                        ),
-                        "GPU Driver TDR (Timeout)": (
-                            _cols("GPU", "USAGE") | _cols("GPU", "LOAD") |
-                            _cols("GPU", "CLOCK") | _cols("GPU", "FREQUENCY")
-                        ),
+
                         "CPU Clock Stretching — Major": (
                             _cols("EFFECTIVE", "CLOCK") |
                             _cols("CLOCK", "PERF") |
-                            _cols("GPU", "USAGE") | _cols("GPU", "LOAD") |
                             _cols("CPU", "USAGE") | _cols("CPU", "LOAD") |
-                            _any("TOTAL CPU USAGE", "TOTAL CPU LOAD")
+                            _any("TOTAL CPU USAGE", "TOTAL CPU LOAD",
+                                 "AVERAGE EFFECTIVE", "EFF CLOCK",
+                                 "T0 EFFECTIVE", "T1 EFFECTIVE",
+                                 "CORE RATIO", "BUS CLOCK")
                         ),
+
                         "CPU Clock Stretching — Minor": (
                             _cols("EFFECTIVE", "CLOCK") |
                             _cols("CLOCK", "PERF") |
                             _cols("CPU", "USAGE") | _cols("CPU", "LOAD") |
-                            _any("TOTAL CPU USAGE", "TOTAL CPU LOAD")
+                            _any("TOTAL CPU USAGE", "TOTAL CPU LOAD",
+                                 "AVERAGE EFFECTIVE", "EFF CLOCK",
+                                 "T0 EFFECTIVE", "T1 EFFECTIVE")
                         ),
+
+                        # -- GPU ------------------------------------------------------
+                        "GPU Thermal Warning": (
+                            _any("GPU TEMPERATURE", "GPU TEMP [",
+                                 "GPU HOT", "GPU HOTSPOT", "HOT SPOT",
+                                 "GPU JUNCTION", "GPU MEMORY JUNCTION",
+                                 "GPU THERMAL", "THERMAL LIMIT",
+                                 # AMD variants
+                                 "GPU EDGE", "EDGE TEMP", "GPU JUNCTION TEMP",
+                                 # NVIDIA variants
+                                 "GPU CORE TEMP", "GPU DIODE",
+                                 # German
+                                 "GPU TEMPERATUR")
+                        ),
+
+                        "GPU Overheating (Hotspot)": (
+                            _any("GPU TEMPERATURE", "GPU TEMP [",
+                                 "GPU HOT", "GPU HOTSPOT", "HOT SPOT",
+                                 "GPU JUNCTION", "GPU MEMORY JUNCTION",
+                                 "GPU THERMAL", "THERMAL LIMIT",
+                                 "GPU EDGE", "EDGE TEMP", "GPU CORE TEMP",
+                                 "GPU DIODE", "GPU TEMPERATUR") |
+                            _cols("GPU", "POWER") | _cols("GPU", "CLOCK") |
+                            _cols("GPU", "USAGE")
+                        ),
+
+                        "GPU Driver TDR (Timeout)": (
+                            _cols("GPU", "USAGE") | _cols("GPU", "LOAD") |
+                            _cols("GPU", "CLOCK") | _cols("GPU", "FREQUENCY") |
+                            _any("GPU AUSLASTUNG", "GPU TAKT",
+                                 "GPU CORE USAGE", "GPU CORE CLOCK",
+                                 "GPU EFFECTIVE CLOCK", "GPU CROSSBAR")
+                        ),
+
                         "GPU Power Limit Saturated": (
-                            _any("GPU POWER", "GPU BOARD POWER", "TGP", "PERFORMANCE LIMIT",
-                                 "POWER LIMIT", "PERFCAP") |
+                            _any("GPU POWER", "GPU BOARD POWER", "GPU PACKAGE POWER",
+                                 "TGP", "TBP", "GPU TGP", "GPU TBP",
+                                 "GPU WATT", "GPU LEISTUNG",
+                                 "PERFORMANCE LIMIT - POWER",
+                                 "PERFORMANCE LIMIT - THERMAL",
+                                 "PERFORMANCE LIMIT - UTILIZATION",
+                                 "PERFORMANCE LIMIT - RELIABILITY",
+                                 "PERFORMANCE LIMIT - MAX",
+                                 "PERFCAP", "POWER LIMIT", "PERF LIMIT",
+                                 "GPU INPUT POWER", "GPU RAIL POWER",
+                                 "GPU 12VHPWR", "NVVDD", "FBVDD") |
                             _cols("GPU", "CLOCK") | _cols("GPU", "USAGE")
                         ),
+
                         "GPU Power Limit Oscillation": (
-                            _any("GPU POWER", "GPU BOARD POWER", "TGP", "PERFORMANCE LIMIT",
-                                 "POWER LIMIT") |
+                            _any("GPU POWER", "GPU BOARD POWER", "TGP", "TBP",
+                                 "PERFORMANCE LIMIT - POWER", "PERFCAP",
+                                 "POWER LIMIT", "GPU WATT", "GPU LEISTUNG",
+                                 "GPU INPUT POWER", "NVVDD", "FBVDD") |
                             _cols("GPU", "CLOCK")
                         ),
+
+                        "GPU VRAM Overflow Analysis": (
+                            _any("VRAM", "GPU MEMORY", "D3D MEMORY", "GPU MEM",
+                                 "MEMORY ALLOCATED", "MEMORY AVAILABLE [MB",
+                                 "GPU D3D", "DEDICATED VIDEO", "VIDEO MEMORY",
+                                 "VIRTUAL MEMORY", "GDDR", "HBM",
+                                 "GPU MEMORY USAGE", "GPU MEMORY LOAD",
+                                 "GPU MEMORY ALLOCATED", "GPU MEMORY AVAILABLE",
+                                 "D3D MEMORY DEDICATED", "D3D MEMORY DYNAMIC",
+                                 "SHARED MEMORY")
+                        ),
+
                         "VRAM Thermal Throttling": (
-                            _any("GPU MEMORY JUNCTION", "VRAM TEMP", "GPU MEM TEMP",
-                                 "MEMORY JUNCTION") |
-                            _cols("GPU", "MEMORY", "CLOCK") | _cols("GPU", "CLOCK")
+                            _any("GPU MEMORY JUNCTION", "MEMORY JUNCTION",
+                                 "VRAM TEMP", "VRAM TEMPERATURE",
+                                 "GPU MEM TEMP", "HBM TEMP", "GDDR TEMP",
+                                 "GPU MEMORY TEMP", "MEMORY TEMP") |
+                            _cols("GPU", "MEMORY", "CLOCK") |
+                            _cols("GPU", "CLOCK")
                         ),
+
                         "VRAM Swapping / System Memory Spillover": (
-                            _any("GPU D3D MEMORY", "D3D MEMORY DYNAMIC", "D3D MEMORY DEDICATED",
-                                 "GPU MEMORY ALLOCATED", "VIRTUAL MEMORY", "PAGE FILE")
+                            _any("GPU D3D MEMORY", "D3D MEMORY DYNAMIC",
+                                 "D3D MEMORY DEDICATED", "GPU MEMORY ALLOCATED",
+                                 "SHARED MEMORY", "VIRTUAL MEMORY", "PAGE FILE",
+                                 "GPU MEMORY AVAILABLE", "DEDICATED VIDEO MEMORY")
                         ),
+
+                        # -- PSU RAILS -------------------------------------------------
                         "PSU +12V Rail Sag": (
-                            _any("+12V [V]", "ATX 12V", "EPS 12V") | _cols("GPU", "POWER")
+                            _any("+12V [V]", "+12V VOLTAGE", "12V RAIL",
+                                 "ATX 12V", "EPS 12V", "12V SUPPLY",
+                                 "VBUS 12", "12V OUT", "12 VOLT",
+                                 "VCC 12V", "12VDC",
+                                 "+12.0V", "12.000V",
+                                 "VCORE 12V", "MAIN 12V") |
+                            _cols("GPU", "POWER")
                         ),
-                        "PSU +5V Rail Unstable":  _any("+5V [V]", "ATX 5V"),
-                        "PSU +3.3V Rail Unstable": _any("+3.3V [V]", "3V3 [V]", "ATX 3.3"),
+
+                        "PSU +5V Rail Unstable": (
+                            _any("+5V [V]", "+5V VOLTAGE", "5V RAIL",
+                                 "ATX 5V", "5V SUPPLY", "5VSB", "5V STANDBY",
+                                 "VBUS 5", "5V OUT", "5 VOLT",
+                                 "VCC 5V", "5VDC", "+5.0V", "5.000V",
+                                 "MAIN 5V", "+5VS", "5V SB",
+                                 "VIN 5V", "AVCC")
+                        ),
+
+                        "PSU +3.3V Rail Unstable": (
+                            _any("+3.3V [V]", "+3.3V VOLTAGE", "3.3V RAIL",
+                                 "3V3", "3.3V SUPPLY", "3.3V OUT",
+                                 "ATX 3.3", "3.3 VOLT", "3.3VDC",
+                                 "VCC 3.3", "+3.3VS", "3.3V SB",
+                                 "VDD 3.3", "VDDA", "AVDD",
+                                 "+3.30V", "3.300V", "3.3000V",
+                                 "VDD (SWA)", "VDDQ (SWB)", "VPP (SWC)",
+                                 "1.8V VOUT", "1.0V VOUT",
+                                 "3VSB", "3V SB", "3.3VSB",
+                                 "VIN 3.3", "+3V3", "3V3 RAIL",
+                                 "3.3V VOLTAGE", "3.3V SENSOR",
+                                 "VCC3", "VCC 3", "VCCIO")
+                        ),
+
+                        # -- FANS / COOLING --------------------------------------------
                         "Fan Stall Detected": (
-                            _any("FAN", "RPM", "PUMP") |
+                            _any("FAN", "RPM", "PUMP", "COOLER",
+                                 "FAN SPEED", "FAN RPM", "CPU FAN", "GPU FAN",
+                                 "CHASSIS FAN", "CASE FAN", "SYS FAN",
+                                 "AIO PUMP", "WATER PUMP",
+                                 "LÜFTER", "VENTILATEUR",
+                                 "CPU [RPM]", "GPU [RPM]", "FAN1", "FAN2", "FAN3") |
                             _cols("CPU", "TEMP") | _cols("GPU", "TEMP")
                         ),
-                        "Hardware (WHEA) Errors": (
-                            _any("WHEA", "HARDWARE ERROR", "CORRECTABLE", "NON-FATAL",
-                                 "FATAL ERROR", "PCIe LANE")
-                        ),
+
+                        # -- VRM -------------------------------------------------------
                         "VRM Overheating": (
-                            _any("VRM", "MOSFET", "CHOKE", "MOS TEMP", "PHASE TEMP",
-                                 "SVI", "VDDCR", "CPU VRM")
+                            _any("VRM", "MOSFET", "CHOKE", "MOS TEMP",
+                                 "PHASE TEMP", "VCORE TEMP",
+                                 "CPU VRM", "GPU VRM",
+                                 "SVI", "VDDCR", "VDDCR_SOC",
+                                 "POWER STAGE", "PWM TEMP", "PWMIC",
+                                 "DIGI+ VRM", "ASUS VRM",
+                                 "VRM HOT", "VRM TEMPERATURE",
+                                 "MOSFet", "FET TEMP",
+                                 "IA VR", "GT VR", "SA VR", "VR TEMP")
                         ),
+
+                        # -- MEMORY ---------------------------------------------------
                         "System RAM Exhaustion": (
                             _any("PHYSICAL MEMORY", "MEMORY USED", "MEMORY LOAD",
-                                 "MEMORY AVAILABLE", "RAM LOAD", "RAM USAGE")
+                                 "MEMORY AVAILABLE", "RAM LOAD", "RAM USAGE",
+                                 "PHYSICAL MEMORY USED", "PHYSICAL MEMORY LOAD",
+                                 "PHYSICAL MEMORY AVAILABLE",
+                                 "MEMORY USAGE", "RAM USED", "RAM AVAILABLE",
+                                 "SPEICHER", "ARBEITSSPEICHER")
                         ),
+
                         "Virtual Memory Limit": (
-                            _any("VIRTUAL MEMORY", "PAGE FILE", "COMMIT", "PAGEFILE")
+                            _any("VIRTUAL MEMORY", "PAGE FILE", "COMMIT",
+                                 "PAGEFILE", "SWAP", "VIRTUAL MEMORY COMMITTED",
+                                 "VIRTUAL MEMORY AVAILABLE", "VIRTUAL MEMORY LOAD",
+                                 "PAGE FILE USAGE", "PAGE FILE TOTAL",
+                                 "COMMITTED BYTES", "COMMIT LIMIT")
                         ),
+
+                        # -- STORAGE --------------------------------------------------
                         "Storage Thermal Critical": (
                             _any("DRIVE TEMP", "SSD TEMP", "NVME TEMP", "HDD TEMP",
-                                 "DRIVE TEMPERATURE")
+                                 "DRIVE TEMPERATURE", "DISK TEMP", "DISK TEMPERATURE",
+                                 "M.2 TEMP", "STORAGE TEMP",
+                                 "LAUFWERK TEMP", "FESTPLATTE TEMP",
+                                 "TEMPERATURE [°C]", "DRIVE TEMPERATURE [°C]",
+                                 "DRIVE TEMPERATURE 2", "DRIVE TEMPERATURE 3",
+                                 "COMPOSITE TEMP", "SENSOR 1 TEMP", "SENSOR 2 TEMP")
                         ),
+
                         "Storage Overheating": (
                             _any("DRIVE TEMP", "SSD TEMP", "NVME TEMP", "HDD TEMP",
-                                 "DRIVE TEMPERATURE")
+                                 "DRIVE TEMPERATURE", "DISK TEMP", "M.2 TEMP",
+                                 "COMPOSITE TEMP", "STORAGE TEMP",
+                                 "DRIVE TEMPERATURE 2", "DRIVE TEMPERATURE 3",
+                                 "SENSOR 1 TEMP", "SENSOR 2 TEMP")
                         ),
+
                         "Storage Congestion": (
                             _any("READ RATE", "WRITE RATE", "READ ACTIVITY",
-                                 "WRITE ACTIVITY", "TOTAL ACTIVITY", "DRIVE ACTIVITY")
+                                 "WRITE ACTIVITY", "TOTAL ACTIVITY", "DRIVE ACTIVITY",
+                                 "DISK ACTIVITY", "IO RATE", "READ TOTAL", "WRITE TOTAL",
+                                 "READ SPEED", "WRITE SPEED", "DISK SPEED",
+                                 "MB/S", "READ [MB", "WRITE [MB")
                         ),
+
                         "Storage I/O Bottleneck / Hitching": (
-                            _any("READ RATE", "WRITE RATE", "READ ACTIVITY", "WRITE ACTIVITY",
-                                 "TOTAL ACTIVITY", "FRAME TIME", "FRAMETIME",
-                                 "GPU BUSY", "CPU BUSY")
+                            _any("READ RATE", "WRITE RATE", "READ ACTIVITY",
+                                 "WRITE ACTIVITY", "TOTAL ACTIVITY",
+                                 "READ SPEED", "WRITE SPEED", "IO RATE",
+                                 "FRAME TIME", "FRAMETIME", "GPU BUSY", "CPU BUSY")
                         ),
+
                         "S.M.A.R.T. Hardware Failure": (
-                            _any("DRIVE FAIL", "DRIVE WARN", "S.M.A.R.T", "SMART",
-                                 "FAILURE [YES", "WARNING [YES")
+                            _any("DRIVE FAIL", "DRIVE WARN", "DRIVE WARNING",
+                                 "DRIVE FAILURE", "S.M.A.R.T", "SMART",
+                                 "FAILURE [YES", "WARNING [YES",
+                                 "REALLOCATED", "PENDING SECTOR",
+                                 "UNCORRECTABLE", "OFFLINE UNCORRECTABLE",
+                                 "CRC ERROR", "ULTRA DMA CRC")
                         ),
+
                         "SSD Lifespan Critical": (
                             _any("REMAINING LIFE", "DRIVE HEALTH", "WEAR LEVEL",
-                                 "AVAILABLE SPARE", "DRIVE REMAINING")
+                                 "AVAILABLE SPARE", "DRIVE REMAINING",
+                                 "NAND ENDURANCE", "MEDIA WEAROUT",
+                                 "PERCENT USED", "PERCENT LIFETIME",
+                                 "TOTAL BYTES WRITTEN", "TOTAL HOST WRITES",
+                                 "HOST WRITES", "NAND WRITES",
+                                 "DRIVE REMAINING LIFE", "SSD HEALTH",
+                                 "ENDURANCE REMAINING")
                         ),
+
                         "SSD Wear Warning": (
                             _any("REMAINING LIFE", "DRIVE HEALTH", "WEAR LEVEL",
-                                 "AVAILABLE SPARE", "DRIVE REMAINING")
+                                 "AVAILABLE SPARE", "NAND ENDURANCE",
+                                 "PERCENT USED", "PERCENT LIFETIME",
+                                 "TOTAL HOST WRITES", "HOST WRITES",
+                                 "DRIVE REMAINING LIFE", "SSD HEALTH",
+                                 "ENDURANCE REMAINING")
                         ),
+
+                        # -- FRAME TIMING / PERFORMANCE --------------------------------
                         "Micro-Stuttering Detected": (
                             _any("FRAME TIME", "FRAMETIME", "FPS", "FRAME RATE",
                                  "GPU BUSY", "CPU BUSY", "GPU WAIT", "CPU WAIT",
-                                 "PRESENTED", "DISPLAYED")
+                                 "PRESENTED", "DISPLAYED", "ANIMATION ERROR",
+                                 "FRAME TIME PRESENTED", "FRAME TIME DISPLAYED",
+                                 "FRAMERATE PRESENTED", "FRAMERATE DISPLAYED",
+                                 "1% LOW", "0.1% LOW", "99TH", "1ST PERCENTILE",
+                                 "LATENCY", "RENDER TIME")
                         ),
+
                         "Background Process Interference": (
                             _any("CPU USAGE", "TOTAL CPU", "CPU LOAD", "CPU UTIL",
                                  "GPU USAGE", "GPU LOAD", "GPU CORE LOAD",
-                                 "FRAME TIME", "FRAMETIME")
+                                 "FRAME TIME", "FRAMETIME", "MAX CPU",
+                                 "CPU THREAD", "THREAD USAGE",
+                                 "PROCESS CPU", "CPU AUSLASTUNG")
                         ),
+
                         "GPU Priority Conflict (Background App)": (
                             _any("FRAME TIME", "FRAMETIME", "GPU USAGE", "GPU LOAD",
                                  "GPU BUS", "BUS LOAD", "GPU WAIT", "GPU BUSY",
-                                 "GPU CLOCK", "FPS")
+                                 "GPU CLOCK", "FPS", "GPU CORE LOAD",
+                                 "GPU D3D USAGE", "GPU GRAPHICS USAGE",
+                                 "GPU COMPUTE USAGE", "GPU VIDEO USAGE")
                         ),
+
                         "GPU Engine Wait Bottleneck": (
                             _any("GPU WAIT", "GPU BUSY", "GPU WAIT (AVG)",
                                  "GPU BUSY (AVG)", "FRAME TIME", "FRAMETIME",
-                                 "CPU WAIT", "CPU BUSY", "FPS")
+                                 "CPU WAIT", "CPU BUSY", "FPS",
+                                 "GPU WAIT [MS]", "GPU BUSY [MS]",
+                                 "CPU WAIT [MS]", "CPU BUSY [MS]",
+                                 "ANIMATION ERROR")
                         ),
+
+                        # -- SYSTEM / HARDWARE -----------------------------------------
+                        "Hardware (WHEA) Errors": (
+                            _any("WHEA", "HARDWARE ERROR", "CORRECTABLE",
+                                 "NON-FATAL", "FATAL ERROR", "PCIe LANE",
+                                 "WINDOWS HARDWARE ERROR", "MCE",
+                                 "MACHINE CHECK", "CORRECTABLE ERROR COUNT",
+                                 "NON-FATAL ERROR COUNT", "FATAL ERROR COUNT",
+                                 "WHEA ERROR", "HARDWARE ERRORS",
+                                 "TOTAL ERRORS", "UNSUPPORTED REQUEST")
+                        ),
+
                         "Chipset Thermal Throttling": (
-                            _any("CHIPSET", "PCH TEMP", "PCH [", "MOTHERBOARD [")
+                            _any("CHIPSET", "PCH TEMP", "PCH [",
+                                 "PCH TEMPERATURE", "MOTHERBOARD [",
+                                 "MOTHERBOARD TEMP", "NB TEMP", "NORTHBRIDGE",
+                                 "SOUTHBRIDGE", "PLATFORM CONTROLLER",
+                                 "PCH TEMPERATURE [", "PCH TEMPERATURE2",
+                                 "PCH TEMPERATURE3", "PCH TEMPERATURE4",
+                                 "SMU TEMP", "SPD HUB")
                         ),
+
                         "PCIe Bus Interface Chokepoint": (
                             _any("GPU BUS", "BUS LOAD", "PCIE LINK", "PCIE SPEED",
-                                 "GPU USAGE", "GPU CLOCK", "FRAME TIME")
+                                 "GPU USAGE", "GPU CLOCK", "FRAME TIME",
+                                 "PCIE LINK SPEED", "PCIE BANDWIDTH",
+                                 "GPU BUS LOAD", "GPU BUS INTERFACE",
+                                 "GPU PCIE", "LINK SPEED", "GT/S")
                         ),
+
                         "PCIe Bus Signal Instability": (
-                            _any("PCIE", "PCIe ERROR", "RECEIVER ERROR", "REPLAY",
-                                 "BAD TLP", "BAD DLLP", "RECOVERY COUNT",
-                                 "CORRECTABLE ERROR", "NON-FATAL ERROR", "FATAL ERROR")
+                            _any("RECEIVER ERROR", "REPLAY COUNT",
+                                 "REPLAY ROLLOVER", "BAD TLP", "BAD DLLP",
+                                 "RECOVERY COUNT", "CORRECTABLE ERROR COUNT",
+                                 "NON-FATAL ERROR COUNT", "FATAL ERROR COUNT",
+                                 "UNSUPPORTED REQUEST", "PCIE LANE",
+                                 "LCRC ERROR", "NAKS SENT", "NAKS RECEIVED",
+                                 "PCI EXPRESS ERROR", "PCIE ERROR")
                         ),
+
                         "Kernel Driver Latency (DPC/ISR)": (
                             _any("DPC", "SYSTEM INTERRUPT", "LATENCY",
-                                 "FRAME TIME", "FRAMETIME", "CPU BUSY", "CPU WAIT")
+                                 "FRAME TIME", "FRAMETIME", "CPU BUSY", "CPU WAIT",
+                                 "DPC LATENCY", "ISR LATENCY",
+                                 "INTERRUPT LATENCY", "KERNEL LATENCY",
+                                 "DPC/ISR", "DEFERRED PROCEDURE")
                         ),
+
                         "Laptop Power Delivery Failure (Limp Mode)": (
                             _any("BATTERY", "CHARGE", "DISCHARGE", "AC ADAPTER",
-                                 "REMAINING CAPACITY", "CHARGE LEVEL", "CHARGE RATE") |
+                                 "REMAINING CAPACITY", "CHARGE LEVEL", "CHARGE RATE",
+                                 "BATTERY VOLTAGE", "BATTERY CAPACITY",
+                                 "CHARGE CURRENT", "DISCHARGE RATE",
+                                 "WEAR LEVEL", "FULL CHARGE CAPACITY",
+                                 "DESIGN CAPACITY", "POWER SOURCE",
+                                 "AC/DC", "PLUGGED IN", "ON BATTERY",
+                                 "LAPTOP BATTERY", "BATTERY REMAINING",
+                                 "BATTERY POWER", "DISCHARGE CURRENT") |
                             _cols("CPU", "POWER") | _cols("GPU", "POWER")
                         ),
+
                         "Phantom Clock Cap": (
                             _any("GPU CLOCK", "GPU CORE CLOCK", "GPU EFFECTIVE CLOCK",
-                                 "PERFORMANCE LIMIT", "POWER LIMIT", "THERMAL LIMIT")
+                                 "GPU CROSSBAR", "GPU VIDEO CLOCK", "GPU MEMORY CLOCK",
+                                 "PERFORMANCE LIMIT", "POWER LIMIT", "THERMAL LIMIT",
+                                 "RELIABILITY VOLTAGE", "OPERATING VOLTAGE",
+                                 "GPU BOOST CLOCK", "BOOST CLOCK",
+                                 "GPU BASE CLOCK", "BASE CLOCK",
+                                 "PERFCAP REASON", "CLOCK CAP", "CLOCK LIMIT")
                         ),
                     }
                     return m.get(sig_name, set()) & cols
