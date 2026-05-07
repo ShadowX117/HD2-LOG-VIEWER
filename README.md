@@ -30,16 +30,16 @@ This approach prioritizes build stability, reproducibility, and cost efficiency 
 
 ## 🚀 Installation & Deployment
 <!-- LATEST_RELEASE_START -->
-### 🚀 Latest Release: v1.4.6 (2026-05-05)
+### 🚀 Latest Release: v1.4.7 (2026-05-07)
 
-- Download: [release_release_v1.4.6.zip](https://github.com/ERRORX2/HD2-LOG-VIEWER/releases/download/v1.4.6/release_v1.4.6.zip)
+- Download: [release_release_v1.4.7.zip](https://github.com/ERRORX2/HD2-LOG-VIEWER/releases/download/v1.4.7/release_v1.4.7.zip)
 
 ### 🔐 Integrity
 
-- EXE SHA256: D71872BC0E9EC4C19D863467AB0E16BF560D3042732760610D8A536E691FACBD
+- EXE SHA256: 60A3AF0C16E3F20847DB73D1563A35FA8C04521AE591F7149DC6CB8F743E9750
 - Groups JSON SHA256: 23D61C23D4E5D605D1CAB518647C0BB5BAE026AE86D3B9E065ACEA67FE11F1D4
-- Manifest SHA256: C59E2CC971A7A41AAA28EC30D67DFCCF4E203439EADEBCF7500291CE51460743
-- ZIP SHA256: E869E70A46C5FD79D1626F423BED5F43AB74DCB18ACFA6A027A532BA53313690
+- Manifest SHA256: E0572F44B27C8B9F808673E7D9C4D4752359FA08BAA7C0FB9FFBC7A67540B97B
+- ZIP SHA256: 608EC825D115C9BBA331B88D047FDEAA5AA0CC65053BE8B90F148CE48E0CF2C0
 <!-- LATEST_RELEASE_END -->
 
 ### 📦 Option 1: Compiled Executable (Recommended for Users)
@@ -153,6 +153,7 @@ The engine monitors multiple layers of system behavior:
 ## ⚖️ License
 
 MIT License - Developed for the hardware enthusiast community.
+
 
 
 
