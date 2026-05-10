@@ -55,7 +55,7 @@ This approach prioritizes build stability, reproducibility, and cost efficiency 
 ### 🛠️ Option 2: Running from Source (For Developers)
 
 **Prerequisites:**
-* Python 3.10+
+* Python 3.12
 * pip
 
 ```bash
