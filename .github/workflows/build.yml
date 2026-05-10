@@ -29,107 +29,106 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install Linux system dependencies
-        if: runner.os == 'Linux'
+      - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk zip
+          sudo apt-get install -y python3-tk zip wget libfuse2
 
-      - name: Install Python dependencies (Windows)
-        if: runner.os == 'Windows'
+      - if: runner.os == 'Windows'
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
           pip install pandas numpy matplotlib pyinstaller
 
-      - name: Install Python dependencies (Linux)
-        if: runner.os == 'Linux'
+      - if: runner.os == 'Linux'
         shell: bash
         run: |
           python -m pip install --upgrade pip
           pip install pandas numpy matplotlib pyinstaller
 
-      - name: Prepare artifact folder (Windows)
-        if: runner.os == 'Windows'
+      - if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifact | Out-Null
           New-Item -ItemType Directory -Force artifact\sha256 | Out-Null
 
-      - name: Prepare artifact folder (Linux)
-        if: runner.os == 'Linux'
+      - if: runner.os == 'Linux'
         shell: bash
         run: |
           mkdir -p artifact
           mkdir -p artifact/sha256
 
-      - name: Build Windows executable
-        if: runner.os == 'Windows'
+      - if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          pyinstaller --clean --noconfirm `
-            --onefile `
-            --noconsole `
-            --noupx `
-            --name "HD2_LOG_VIEWER" `
-            --add-data "groups.json;." `
-            HD2_LOG_VIEWER.pyw
-
-          if (-not (Test-Path "dist\HD2_LOG_VIEWER.exe")) {
-            throw "Windows build failed"
-          }
-
+          pyinstaller --clean --noconfirm --onefile --noconsole --noupx --name "HD2_LOG_VIEWER" --add-data "groups.json;." HD2_LOG_VIEWER.pyw
           Copy-Item "dist\HD2_LOG_VIEWER.exe" "artifact\${{ matrix.artifact_binary }}" -Force
           Copy-Item "groups.json" "artifact\" -Force
 
-      - name: Build Linux executable
-        if: runner.os == 'Linux'
+      - if: runner.os == 'Linux'
         shell: bash
         run: |
-          pyinstaller \
-            --clean \
-            --noconfirm \
-            --onefile \
-            --name "HD2_LOG_VIEWER" \
-            --add-data "groups.json:." \
-            HD2_LOG_VIEWER.pyw
-
-          if [ ! -f "dist/HD2_LOG_VIEWER" ]; then
-            echo "Linux build failed"
-            exit 1
-          fi
-
+          pyinstaller --clean --noconfirm --onefile --name "HD2_LOG_VIEWER" --add-data "groups.json:." HD2_LOG_VIEWER.pyw
           cp "dist/HD2_LOG_VIEWER" "artifact/${{ matrix.artifact_binary }}"
           cp "groups.json" "artifact/groups.json"
           chmod +x "artifact/${{ matrix.artifact_binary }}"
 
-      - name: Create Linux README
-        if: runner.os == 'Linux'
+      - if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          cp artifact/HD2_LOG_VIEWER_linux AppDir/usr/bin/HD2_LOG_VIEWER
+          chmod +x AppDir/usr/bin/HD2_LOG_VIEWER
+          cat > AppDir/AppRun << 'EOF'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/bin/HD2_LOG_VIEWER"
+          EOF
+          chmod +x AppDir/AppRun
+          cat > AppDir/HD2_LOG_VIEWER.desktop << 'EOF'
+          [Desktop Entry]
+          Name=HD2 LOG VIEWER
+          Exec=HD2_LOG_VIEWER
+          Icon=hd2
+          Type=Application
+          Categories=Utility;
+          EOF
+
+      - if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+
+      - if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          ./appimagetool-x86_64.AppImage AppDir HD2_LOG_VIEWER.AppImage
+          mv HD2_LOG_VIEWER.AppImage artifact/
+
+      - if: runner.os == 'Linux'
         shell: bash
         run: |
           cat > artifact/README_LINUX.txt << 'EOF'
           HD2 LOG VIEWER - Linux
 
-          Run:
-            chmod +x HD2_LOG_VIEWER_linux
-            ./HD2_LOG_VIEWER_linux
+          Double click HD2_LOG_VIEWER.AppImage
 
-          If missing dependencies:
-            sudo apt-get install python3-tk
+          Or run binary:
+          chmod +x HD2_LOG_VIEWER_linux
+          ./HD2_LOG_VIEWER_linux
           EOF
 
-      - name: Generate build info (Windows)
-        if: runner.os == 'Windows'
+      - if: runner.os == 'Windows'
         shell: pwsh
         run: |
           @{
@@ -139,8 +138,7 @@ jobs:
             platform = "windows"
           } | ConvertTo-Json | Set-Content "artifact\build_info.json"
 
-      - name: Generate build info (Linux)
-        if: runner.os == 'Linux'
+      - if: runner.os == 'Linux'
         shell: bash
         run: |
           cat > artifact/build_info.json << EOF
@@ -152,31 +150,27 @@ jobs:
           }
           EOF
 
-      - name: Generate SHA256 (Windows)
-        if: runner.os == 'Windows'
+      - if: runner.os == 'Windows'
         shell: pwsh
         run: |
           (Get-FileHash "artifact\${{ matrix.artifact_binary }}" -Algorithm SHA256).Hash | Set-Content "artifact\sha256\binary.sha256"
           (Get-FileHash "artifact\groups.json" -Algorithm SHA256).Hash | Set-Content "artifact\sha256\groups.sha256"
           (Get-FileHash "artifact\build_info.json" -Algorithm SHA256).Hash | Set-Content "artifact\sha256\build.sha256"
 
-      - name: Generate SHA256 (Linux)
-        if: runner.os == 'Linux'
+      - if: runner.os == 'Linux'
         shell: bash
         run: |
           sha256sum "artifact/${{ matrix.artifact_binary }}" | awk '{print $1}' > artifact/sha256/binary.sha256
           sha256sum "artifact/groups.json" | awk '{print $1}' > artifact/sha256/groups.sha256
           sha256sum "artifact/build_info.json" | awk '{print $1}' > artifact/sha256/build.sha256
 
-      - name: Create ZIP (Windows)
-        if: runner.os == 'Windows'
+      - if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $zip = "release_${{ github.ref_name }}_${{ matrix.zip_suffix }}.zip"
           Compress-Archive -Path "artifact\*" -DestinationPath "artifact\$zip" -Force
 
-      - name: Create ZIP (Linux)
-        if: runner.os == 'Linux'
+      - if: runner.os == 'Linux'
         shell: bash
         run: |
           ZIP="release_${{ github.ref_name }}_${{ matrix.zip_suffix }}.zip"
@@ -184,14 +178,12 @@ jobs:
           zip -r "$ZIP" ./*
           cd ..
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.zip_suffix }}
           path: artifact/
 
-      - name: Create GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
+      - if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: artifact/release_*.zip
