@@ -1,10 +1,10 @@
 ﻿import pandas as pd
 import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
+matplotlib.use('Agg')
 import matplotlib.ticker as ticker
 import matplotlib.colors as mcolors
 import matplotlib.cm as mcm
+from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from pathlib import Path
 from typing import List, Optional, Dict, Set, Tuple
@@ -19,6 +19,25 @@ import urllib.request
 import urllib.error
 import webbrowser
 import re
+
+import threading as _threading
+import tkinter as _tk_module
+
+def _safe_var_del(self):
+    if _threading.current_thread() is _threading.main_thread():
+        if self._tk.getboolean(self._tk.call("info", "exists", self._name)):
+            self._tk.call("unset", "-nocomplain", self._name)
+
+def _safe_image_del(self):
+    if _threading.current_thread() is _threading.main_thread():
+        try:
+            self.tk.call("image", "delete", self.name)
+        except Exception:
+            pass
+
+_tk_module.Variable.__del__ = _safe_var_del
+_tk_module.Image.__del__ = _safe_image_del
+
 
 _EXCLUDE_RAW = frozenset([
     '[MB]', '[GB]', '[A]', 'PWM', '(STATIC)',
@@ -40,7 +59,7 @@ _TEMP_TRIGGERS = frozenset(['TEMP', '°C', 'HOTSPOT', 'TDIE', 'TCTL'])
 
 GROUPS_FILE         = "groups.json"
 SENSOR_ALIASES_FILE = "sensor_aliases.json"
-CURRENT_VERSION = "1.4.9"
+CURRENT_VERSION = "1.4.10"
 GITHUB_REPO = "ERRORX2/HD2-LOG-VIEWER"
 
 def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delta_mode: bool = False,
@@ -507,6 +526,7 @@ class TelemetryApp:
         self.df = analyzer.df
 
         self.ref_df = None
+        self.ref_analyzer = None
         self.compare_mode = False
 
         (self.custom_groups, self.is_dark, self.multi_mode, self.delta_mode,
@@ -667,9 +687,7 @@ class TelemetryApp:
         )
 
     def _on_close(self):
-        if self._sig_watcher_id:
-            self.root.after_cancel(self._sig_watcher_id)
-        plt.close('all')
+        self._teardown()
         self.root.quit()
         self.root.destroy()
         os._exit(0)
@@ -1325,7 +1343,7 @@ class TelemetryApp:
                 lambda v, _: self._format_elapsed(v)))
             ax.tick_params(axis='x', labelrotation=30)
 
-        sm = plt.cm.ScalarMappable(cmap=cmap_discrete,
+        sm = mcm.ScalarMappable(cmap=cmap_discrete,
                                    norm=mcolors.Normalize(vmin=0, vmax=1))
         sm.set_array([])
         cbar = self.fig.colorbar(sm, ax=ax, fraction=0.015, pad=0.01)
@@ -1387,8 +1405,39 @@ class TelemetryApp:
 
     def _set_reference(self):
         self.ref_df = self.df.copy()
+        self.ref_analyzer = self.analyzer
         self.show_toast("Current log saved as Reference")
         self.compare_btn.config(state="normal")
+        if hasattr(self, 'swap_ref_btn'):
+            self.swap_ref_btn.config(state="normal")
+
+    def _set_reference_from_file(self):
+        path = filedialog.askopenfilename(filetypes=[("CSV", "*.csv")])
+        if not path:
+            return
+        def _on_success(analyzer):
+            self.ref_df = analyzer.df.copy()
+            self.ref_analyzer = analyzer
+            self.show_toast(f"Reference set: {analyzer.path.name}")
+            self.compare_btn.config(state="normal")
+            if hasattr(self, 'swap_ref_btn'):
+                self.swap_ref_btn.config(state="normal")
+            if self.compare_mode:
+                self.update_plot()
+        def _on_error(exc):
+            messagebox.showerror("Reference Load Error", str(exc))
+        self._load_csv_threaded(path, on_success=_on_success, on_error=_on_error)
+
+    def _swap_reference(self):
+        if self.ref_df is None or self.ref_analyzer is None:
+            return
+        self.df, self.ref_df = self.ref_df, self.df.copy()
+        self.analyzer, self.ref_analyzer = self.ref_analyzer, self.analyzer
+        self._sig_hits  = []
+        self._sig_dirty = True
+        self._setup_ui()
+        self._apply_theme_colors()
+        self.update_plot()
 
     def _apply_theme_colors(self):
         bg, fg = ("#121212", "#e0e0e0") if self.is_dark else ("#f8f9fa", "#212529")
@@ -3832,8 +3881,12 @@ class TelemetryApp:
         _tick_spin()
 
         def _worker():
+            _tk_refs = [spin_var, wait_win, bar_fg, bar_bg, bar_frame, inner_w, outer_w]
             hw = self.analyzer.extract_hardware_names()
-            self.root.after(0, lambda: _show_results(hw))
+            def _done():
+                _tk_refs.clear()
+                _show_results(hw)
+            self.root.after(0, _done)
 
         def _show_results(hw):
             if wait_win.winfo_exists():
@@ -4025,16 +4078,17 @@ class TelemetryApp:
 
         def _generate():
             try:
-                import matplotlib
-                matplotlib.use('Agg')
-                import matplotlib.pyplot as _plt
+                from matplotlib.figure import Figure
+                from matplotlib.backends.backend_agg import FigureCanvasAgg
+                import matplotlib.ticker as _ticker
                 df   = self.df
                 cols = list(df.columns)
                 sel  = [c for c, v in self.vars.items() if v.get() and c in df.columns]
                 x_vals, ts, use_time = self._get_x_axis()
-                colors_cycle = _plt.rcParams['axes.prop_cycle'].by_key()['color']
+                colors_cycle = matplotlib.rcParams['axes.prop_cycle'].by_key()['color']
 
                 def _fig_to_b64(fig) -> str:
+                    FigureCanvasAgg(fig)
                     buf = io.BytesIO()
                     fig.savefig(buf, format='png', dpi=150, bbox_inches='tight',
                                 facecolor='#1a1a2e')
@@ -4047,8 +4101,9 @@ class TelemetryApp:
                             f'<figcaption>{html_mod.escape(caption)}</figcaption></figure>')
 
                 def _make_chart(sensor_cols: list, title: str, figsize=(13, 3.5)) -> str:
-                    fig, ax = _plt.subplots(figsize=figsize)
+                    fig = Figure(figsize=figsize)
                     fig.patch.set_facecolor('#1a1a2e')
+                    ax = fig.add_subplot(111)
                     ax.set_facecolor('#0f0f23')
                     for i, col in enumerate(sensor_cols):
                         if col not in df.columns:
@@ -4067,13 +4122,12 @@ class TelemetryApp:
                         for t in leg.get_texts():
                             t.set_color('#ddd')
                     if use_time:
-                        import matplotlib.ticker as ticker
                         ax.xaxis.set_major_formatter(
-                            ticker.FuncFormatter(lambda v, _: self._format_elapsed(v)))
+                            _ticker.FuncFormatter(lambda v, _: self._format_elapsed(v)))
                         ax.tick_params(axis='x', labelrotation=20)
                     fig.subplots_adjust(right=0.72)
                     b64 = _fig_to_b64(fig)
-                    _plt.close(fig)
+                    fig.clf()
                     return _chart_html(b64, title)
 
                 _set_status("Rendering selected sensor chart\u2026", 0.10)
@@ -4138,8 +4192,9 @@ class TelemetryApp:
                     lo, hi = self.volt_rails.get(rail_name, (None, None))
 
                     def _make_rail_chart(rcols, rtitle, rlo, rhi):
-                        fig, ax = _plt.subplots(figsize=(13, 3.5))
+                        fig = Figure(figsize=(13, 3.5))
                         fig.patch.set_facecolor('#1a1a2e')
+                        ax = fig.add_subplot(111)
                         ax.set_facecolor('#0f0f23')
                         for i, col in enumerate(rcols):
                             ax.plot(x_vals, df[col], lw=1.2,
@@ -4163,13 +4218,12 @@ class TelemetryApp:
                             for t in leg.get_texts():
                                 t.set_color('#ddd')
                         if use_time:
-                            import matplotlib.ticker as ticker
                             ax.xaxis.set_major_formatter(
-                                ticker.FuncFormatter(lambda v, _: self._format_elapsed(v)))
+                                _ticker.FuncFormatter(lambda v, _: self._format_elapsed(v)))
                             ax.tick_params(axis='x', labelrotation=20)
                         fig.subplots_adjust(right=0.72)
                         b64 = _fig_to_b64(fig)
-                        _plt.close(fig)
+                        fig.clf()
                         return _chart_html(b64, rtitle)
 
                     spec_str = f"  |  Spec: {lo}V \u2013 {hi}V" if lo is not None else ""
@@ -4942,6 +4996,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             widget.destroy()
 
         self.root.bind("<Control-F8>", lambda e: self._toggle_debug())
+        self.root.bind("<Control-c>", lambda e: self._copy_png_to_clipboard())
 
         self.paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         self.paned.pack(fill=tk.BOTH, expand=True)
@@ -4968,9 +5023,13 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         btn_row2 = ttk.Frame(mode_f)
         btn_row2.pack(fill=tk.X, pady=2)
         ttk.Button(btn_row2, text="📌 Set Ref", command=self._set_reference).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+        ttk.Button(btn_row2, text="📂 Ref CSV", command=self._set_reference_from_file).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
         self.compare_btn = ttk.Button(btn_row2, text="🔍 Compare: OFF", command=self._toggle_compare,
                                       state="disabled" if self.ref_df is None else "normal")
         self.compare_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
+        self.swap_ref_btn = ttk.Button(btn_row2, text="⇄ Swap", command=self._swap_reference,
+                                       state="disabled" if self.ref_df is None else "normal")
+        self.swap_ref_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=1)
 
         btn_row3 = ttk.Frame(mode_f)
         btn_row3.pack(fill=tk.X, pady=2)
@@ -5110,10 +5169,37 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         self.right = ttk.Frame(self.paned, padding="5")
         self.paned.add(self.right, weight=4)
 
-        self.fig = plt.figure(figsize=(10, 6))
+        if hasattr(self, 'canvas_widget') and self.canvas_widget:
+            for cid in (getattr(self, '_cid_move', None), getattr(self, '_cid_leave', None)):
+                if cid is not None:
+                    try:
+                        self.canvas_widget.mpl_disconnect(cid)
+                    except Exception:
+                        pass
+            self._cid_move = None
+            self._cid_leave = None
+            try:
+                self.canvas_widget.toolbar = None
+            except Exception:
+                pass
+            try:
+                self.canvas_widget.get_tk_widget().destroy()
+            except Exception:
+                pass
+            self.canvas_widget = None
+
+        if hasattr(self, 'fig') and self.fig:
+            try:
+                self.fig.canvas.toolbar = None
+            except Exception:
+                pass
+            self.fig.clf()
+            self.fig = None
+
+        self.fig = Figure(figsize=(10, 6))
         self.canvas_widget = FigureCanvasTkAgg(self.fig, master=self.right)
-        self.canvas_widget.mpl_connect('motion_notify_event', self._on_mouse_move)
-        self.canvas_widget.mpl_connect('axes_leave_event', self._on_mouse_leave)
+        self._cid_move  = self.canvas_widget.mpl_connect('motion_notify_event', self._on_mouse_move)
+        self._cid_leave = self.canvas_widget.mpl_connect('axes_leave_event', self._on_mouse_leave)
 
         toolbar_f = ttk.Frame(self.right)
         toolbar_f.pack(side=tk.TOP, fill=tk.X)
@@ -5422,8 +5508,41 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             return
         self._load_csv_threaded(path, on_success=self._apply_new_csv)
 
+    def _teardown(self):
+        if self._sig_watcher_id:
+            self.root.after_cancel(self._sig_watcher_id)
+            self._sig_watcher_id = None
+
+        if hasattr(self, 'canvas_widget') and self.canvas_widget:
+            for cid in (getattr(self, '_cid_move', None), getattr(self, '_cid_leave', None)):
+                if cid is not None:
+                    try:
+                        self.canvas_widget.mpl_disconnect(cid)
+                    except Exception:
+                        pass
+            self._cid_move = None
+            self._cid_leave = None
+
+        def _clear_var(v):
+            try:
+                for mode, cbname in v.trace_info():
+                    v.trace_remove(mode, cbname)
+            except Exception:
+                pass
+
+        for v in getattr(self, 'vars', {}).values():
+            _clear_var(v)
+        self.vars = {}
+
+        for attr in ('name_var', 'search_var', '_sig_badge_var'):
+            v = getattr(self, attr, None)
+            if v is not None:
+                _clear_var(v)
+                setattr(self, attr, None)
+
     def _apply_new_csv(self, new_analyzer):
         """Called on the main thread once a new CSV has loaded successfully."""
+        self._teardown()
         self.analyzer = new_analyzer
         self.df = self.analyzer.df
         new_cols = set(self.df.columns)
@@ -5516,16 +5635,23 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                 wait_win.destroy()
 
         def _worker():
+            _tk_refs = [spin_var, wait_win, bar_fg, bar_bg, bar_frame, inner, outer]
+
+            def _release_tk_refs():
+                _tk_refs.clear()
+
             try:
                 analyzer = TelemetryAnalyzer(path)
                 analyzer.load()
                 def _done():
                     _close()
+                    _release_tk_refs()
                     on_success(analyzer)
                 self.root.after(0, _done)
             except Exception as exc:
                 def _fail():
                     _close()
+                    _release_tk_refs()
                     if on_error:
                         on_error(exc)
                     else:
@@ -5543,6 +5669,47 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         f = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG", "*.png")])
         if f:
             self.fig.savefig(f, dpi=300, bbox_inches='tight', facecolor=self.fig.get_facecolor())
+
+    def _copy_png_to_clipboard(self):
+        try:
+            import io, sys, ctypes
+            from PIL import Image
+
+            buf = io.BytesIO()
+            self.fig.savefig(buf, format='png', dpi=150,
+                             bbox_inches='tight',
+                             facecolor=self.fig.get_facecolor())
+            buf.seek(0)
+
+            if sys.platform == 'win32':
+                k32 = ctypes.windll.kernel32
+                u32 = ctypes.windll.user32
+                k32.GlobalAlloc.restype  = ctypes.c_void_p
+                k32.GlobalAlloc.argtypes = [ctypes.c_uint, ctypes.c_size_t]
+                k32.GlobalLock.restype   = ctypes.c_void_p
+                k32.GlobalLock.argtypes  = [ctypes.c_void_p]
+                k32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+                u32.SetClipboardData.restype  = ctypes.c_void_p
+                u32.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
+
+                img = Image.open(buf).convert('RGB')
+                output = io.BytesIO()
+                img.save(output, 'BMP')
+                data = output.getvalue()[14:]        
+
+                u32.OpenClipboard(0)
+                u32.EmptyClipboard()
+                h = k32.GlobalAlloc(0x0042, len(data))
+                ptr = k32.GlobalLock(h)
+                ctypes.memmove(ptr, data, len(data))
+                k32.GlobalUnlock(h)
+                u32.SetClipboardData(8, h)            
+                u32.CloseClipboard()
+                self.show_toast("Chart copied to clipboard")
+            else:
+                self.show_toast("Clipboard copy is Windows-only; use 💾 PNG instead")
+        except Exception as e:
+            self.show_toast(f"Copy failed: {e}")
 
     def _clear_cursors(self):
         for line in self.cursor_lines:
@@ -5676,7 +5843,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                     ax.axhline(y=high, color='#ff4d4d', ls='--', lw=1, alpha=0.5, zorder=1)
                     break
 
-        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        colors = matplotlib.rcParams['axes.prop_cycle'].by_key()['color']
 
         if self.multi_mode:
             category_groups = {}
@@ -5717,7 +5884,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                     for t in l.get_texts():
                         t.set_color(text_color)
             for ax in axes[:-1]:
-                plt.setp(ax.get_xticklabels(), visible=False)
+                for _lbl in ax.get_xticklabels(): _lbl.set_visible(False)
             self.fig.subplots_adjust(right=0.80, hspace=0.3)
 
         elif self.delta_mode and len(sel) >= 2:
@@ -5840,17 +6007,22 @@ if __name__ == "__main__":
         _tick_spin()
 
         def _worker():
+            _tk_refs = [spin_var, splash, bar_fg, bar_bg, bar_frame, inner, outer]
             try:
                 a = TelemetryAnalyzer(path)
                 a.load()
+                refs = _tk_refs[:]
                 def _done():
+                    refs.clear()
                     splash.grab_release()
                     splash.destroy()
                     root.deiconify()
                     TelemetryApp(root, a)
                 root.after(0, _done)
             except Exception as exc:
+                refs = _tk_refs[:]
                 def _fail():
+                    refs.clear()
                     splash.grab_release()
                     splash.destroy()
                     messagebox.showerror("Error", str(exc))
