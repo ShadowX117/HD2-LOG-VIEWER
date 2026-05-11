@@ -21,85 +21,130 @@ jobs:
           - os: windows-2022
             artifact_binary: HD2_LOG_VIEWER_windows.exe
             zip_suffix: windows
+            platform: windows
 
           - os: ubuntu-22.04
             artifact_binary: HD2_LOG_VIEWER_linux
             zip_suffix: linux
+            platform: linux
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - if: runner.os == 'Linux'
+      - name: Install Linux Dependencies
+        if: runner.os == 'Linux'
+        shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk zip wget libfuse2
+          sudo apt-get install -y python3-tk tk-dev zip wget libfuse2
 
-      - if: runner.os == 'Windows'
+      - name: Install Python Dependencies (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy matplotlib pyinstaller
 
-      - if: runner.os == 'Linux'
+          if (Test-Path "requirements.txt") {
+            pip install -r requirements.txt
+          } else {
+            pip install pandas numpy matplotlib pyinstaller
+          }
+
+      - name: Install Python Dependencies (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy matplotlib pyinstaller
 
-      - if: runner.os == 'Windows'
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install pandas numpy matplotlib pyinstaller
+          fi
+
+      - name: Prepare Artifact Folder (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifact | Out-Null
           New-Item -ItemType Directory -Force artifact\sha256 | Out-Null
 
-      - if: runner.os == 'Linux'
+      - name: Prepare Artifact Folder (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           mkdir -p artifact
           mkdir -p artifact/sha256
 
-      - if: runner.os == 'Windows'
+      - name: Build Executable (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          pyinstaller --clean --noconfirm --onefile --noconsole --noupx --icon="assets\icon.ico" --name "HD2_LOG_VIEWER" --add-data "groups.json;." HD2_LOG_VIEWER.pyw
+          pyinstaller --clean --noconfirm `
+            --onefile `
+            --noconsole `
+            --noupx `
+            --icon="assets\icon.ico" `
+            --name "HD2_LOG_VIEWER" `
+            --add-data "groups.json;." `
+            HD2_LOG_VIEWER.pyw
+
+          if (-not (Test-Path "dist\HD2_LOG_VIEWER.exe")) {
+            throw "Build failed"
+          }
+
           Copy-Item "dist\HD2_LOG_VIEWER.exe" "artifact\${{ matrix.artifact_binary }}" -Force
           Copy-Item "groups.json" "artifact\" -Force
 
-      - if: runner.os == 'Linux'
+      - name: Build Executable (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
-          pyinstaller --clean --noconfirm --onefile --icon="assets/icon.ico" --name "HD2_LOG_VIEWER" --add-data "groups.json:." HD2_LOG_VIEWER.pyw
+          export MPLBACKEND=TkAgg
+
+          pyinstaller --clean --noconfirm \
+            --onefile \
+            --icon="assets/icon.ico" \
+            --name "HD2_LOG_VIEWER" \
+            --add-data "groups.json:." \
+            HD2_LOG_VIEWER.py
+
           cp "dist/HD2_LOG_VIEWER" "artifact/${{ matrix.artifact_binary }}"
           cp "groups.json" "artifact/groups.json"
+
           chmod +x "artifact/${{ matrix.artifact_binary }}"
 
-      - if: runner.os == 'Linux'
+      - name: Build AppImage
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
+
           cp artifact/HD2_LOG_VIEWER_linux AppDir/usr/bin/HD2_LOG_VIEWER
           chmod +x AppDir/usr/bin/HD2_LOG_VIEWER
-          
-          # Copy the icon from assets for the AppImage
+
           cp assets/icon.png AppDir/hd2.png
-          
+
           cat > AppDir/AppRun << 'EOF'
-          #!/bin/bash          
+          #!/bin/bash
           HERE="$(dirname "$(readlink -f "$0")")"
           exec "$HERE/usr/bin/HD2_LOG_VIEWER"
           EOF
+
           chmod +x AppDir/AppRun
-          
-          cat > AppDir/HD2_LOG_VIEWER.desktop << 'EOF'
+
+          cat > AppDir/usr/share/applications/HD2_LOG_VIEWER.desktop << 'EOF'
           [Desktop Entry]
           Name=HD2 LOG VIEWER
           Exec=HD2_LOG_VIEWER
@@ -108,42 +153,45 @@ jobs:
           Categories=Utility;
           EOF
 
-      - if: runner.os == 'Linux'
-        shell: bash
-        run: |
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+
           chmod +x appimagetool-x86_64.AppImage
 
-      - if: runner.os == 'Linux'
-        shell: bash
-        run: |
           ./appimagetool-x86_64.AppImage AppDir HD2_LOG_VIEWER.AppImage
+
           mv HD2_LOG_VIEWER.AppImage artifact/
 
-      - if: runner.os == 'Linux'
+      - name: Create Linux README
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           cat > artifact/README_LINUX.txt << 'EOF'
           HD2 LOG VIEWER - Linux
 
-          Double click HD2_LOG_VIEWER.AppImage
+          Run AppImage:
+          chmod +x HD2_LOG_VIEWER.AppImage
+          ./HD2_LOG_VIEWER.AppImage
 
           Or run binary:
           chmod +x HD2_LOG_VIEWER_linux
           ./HD2_LOG_VIEWER_linux
           EOF
 
-      - if: runner.os == 'Windows'
+      - name: Generate Build Info (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           @{
             version = "${{ github.ref_name }}"
             date = Get-Date -Format "yyyy-MM-dd"
             commit = "${{ github.sha }}"
+            builder = "github-actions"
+            tool = "pyinstaller"
             platform = "windows"
-          } | ConvertTo-Json | Set-Content "artifact\build_info.json"
+          } | ConvertTo-Json -Depth 10 | Set-Content "artifact\build_info.json"
 
-      - if: runner.os == 'Linux'
+      - name: Generate Build Info (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           cat > artifact/build_info.json << EOF
@@ -151,46 +199,201 @@ jobs:
             "version": "${{ github.ref_name }}",
             "date": "$(date +%Y-%m-%d)",
             "commit": "${{ github.sha }}",
+            "builder": "github-actions",
+            "tool": "pyinstaller",
             "platform": "linux"
           }
           EOF
 
-      - if: runner.os == 'Windows'
+      - name: Generate SHA256 Hashes (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           (Get-FileHash "artifact\${{ matrix.artifact_binary }}" -Algorithm SHA256).Hash | Set-Content "artifact\sha256\binary.sha256"
+
           (Get-FileHash "artifact\groups.json" -Algorithm SHA256).Hash | Set-Content "artifact\sha256\groups.sha256"
+
           (Get-FileHash "artifact\build_info.json" -Algorithm SHA256).Hash | Set-Content "artifact\sha256\build.sha256"
 
-      - if: runner.os == 'Linux'
+      - name: Generate SHA256 Hashes (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           sha256sum "artifact/${{ matrix.artifact_binary }}" | awk '{print $1}' > artifact/sha256/binary.sha256
+
           sha256sum "artifact/groups.json" | awk '{print $1}' > artifact/sha256/groups.sha256
+
           sha256sum "artifact/build_info.json" | awk '{print $1}' > artifact/sha256/build.sha256
 
-      - if: runner.os == 'Windows'
+      - name: Generate Manifest (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $manifest = @{
+            version = "${{ github.ref_name }}"
+            build_date = Get-Date -Format "yyyy-MM-dd"
+            platform = "windows"
+            files = @{
+              "${{ matrix.artifact_binary }}" = (Get-Content "artifact\sha256\binary.sha256")
+              "groups.json" = (Get-Content "artifact\sha256\groups.sha256")
+              "build_info.json" = (Get-Content "artifact\sha256\build.sha256")
+            }
+          } | ConvertTo-Json -Depth 10
+
+          $manifest | Set-Content "artifact\manifest.json" -Encoding utf8
+
+          $manifestHash = (Get-FileHash "artifact\manifest.json" -Algorithm SHA256).Hash
+
+          $manifestHash | Set-Content "artifact\sha256\manifest.sha256"
+
+      - name: Generate Manifest (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cat > artifact/manifest.json << EOF
+          {
+            "version": "${{ github.ref_name }}",
+            "build_date": "$(date +%Y-%m-%d)",
+            "platform": "linux",
+            "files": {
+              "${{ matrix.artifact_binary }}": "$(cat artifact/sha256/binary.sha256)",
+              "groups.json": "$(cat artifact/sha256/groups.sha256)",
+              "build_info.json": "$(cat artifact/sha256/build.sha256)"
+            }
+          }
+          EOF
+
+          sha256sum artifact/manifest.json | awk '{print $1}' > artifact/sha256/manifest.sha256
+
+      - name: Create ZIP (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $zip = "release_${{ github.ref_name }}_${{ matrix.zip_suffix }}.zip"
-          Compress-Archive -Path "artifact\*" -DestinationPath "artifact\$zip" -Force
 
-      - if: runner.os == 'Linux'
+          Compress-Archive `
+            -Path "artifact\*" `
+            -DestinationPath "artifact\$zip" `
+            -Force
+
+          $zipHash = (Get-FileHash "artifact\$zip" -Algorithm SHA256).Hash
+
+          $zipHash | Set-Content "artifact\sha256\zip.sha256"
+
+      - name: Create ZIP (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           ZIP="release_${{ github.ref_name }}_${{ matrix.zip_suffix }}.zip"
+
           cd artifact
           zip -r "$ZIP" ./*
           cd ..
 
-      - uses: actions/upload-artifact@v4
+          sha256sum "artifact/$ZIP" | awk '{print $1}' > artifact/sha256/zip.sha256
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.zip_suffix }}
           path: artifact/
 
-      - if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: artifact/release_*.zip
           prerelease: ${{ contains(github.ref_name, '-dev') }}
-          make_latest: ${{ !contains(github.ref_name, '-dev') }}
+
+  update_readme:
+    runs-on: ubuntu-22.04
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-dev')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+
+      - name: Prepare Release Metadata
+        shell: bash
+        run: |
+          mkdir -p final
+
+          find downloaded -type f -name "*.zip" -exec cp {} final/ \;
+
+      - name: Update README
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          DATE="$(date +%Y-%m-%d)"
+
+          WINDOWS_ZIP=$(ls final/*windows*.zip | head -n1 | xargs basename)
+          LINUX_ZIP=$(ls final/*linux*.zip | head -n1 | xargs basename)
+
+          WINDOWS_HASH=$(sha256sum final/$WINDOWS_ZIP | awk '{print $1}')
+          LINUX_HASH=$(sha256sum final/$LINUX_ZIP | awk '{print $1}')
+
+          START="<!-- LATEST_RELEASE_START -->"
+          END="<!-- LATEST_RELEASE_END -->"
+
+          BLOCK=$(cat <<EOF
+          $START
+          ## 🚀 Latest Release
+
+          Version: $TAG  
+          Date: $DATE
+
+          ### Downloads
+
+          - Windows: https://github.com/${{ github.repository }}/releases/download/$TAG/$WINDOWS_ZIP
+          - Linux: https://github.com/${{ github.repository }}/releases/download/$TAG/$LINUX_ZIP
+
+          ### 🔐 SHA256
+
+          - Windows ZIP: \`$WINDOWS_HASH\`
+          - Linux ZIP: \`$LINUX_HASH\`
+
+          $END
+          EOF
+          )
+
+          python3 - <<PY
+          import re
+
+          with open("README.md", "r", encoding="utf-8") as f:
+              content = f.read()
+
+          start = "<!-- LATEST_RELEASE_START -->"
+          end = "<!-- LATEST_RELEASE_END -->"
+
+          block = """$BLOCK"""
+
+          pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.S)
+
+          if pattern.search(content):
+              content = pattern.sub(block, content)
+          else:
+              content += "\n\n" + block
+
+          with open("README.md", "w", encoding="utf-8") as f:
+              f.write(content)
+          PY
+
+      - name: Commit README
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add README.md
+
+          git commit -m "docs: update release ${{ github.ref_name }}" || exit 0
+
+          git pull --rebase origin master
+
+          git push origin HEAD:master
