@@ -59,7 +59,7 @@ _TEMP_TRIGGERS = frozenset(['TEMP', '°C', 'HOTSPOT', 'TDIE', 'TCTL'])
 
 GROUPS_FILE         = "groups.json"
 SENSOR_ALIASES_FILE = "sensor_aliases.json"
-CURRENT_VERSION = "1.4.11"
+CURRENT_VERSION = "1.5.0"
 GITHUB_REPO = "ERRORX2/HD2-LOG-VIEWER"
 
 def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delta_mode: bool = False,
@@ -883,7 +883,7 @@ class TelemetryApp:
             ("PSU +5V Rail Unstable",           "WARNING"),
             ("PSU +3.3V Rail Unstable",         "WARNING"),
             ("Fan Stall Detected",              "CRITICAL"),
-            ("PSU Hardware Failure Indicators", "CRITICAL/WARNING"),
+            ("PSU Hardware Failure Indicators", "CRITICAL"),
             ("Hardware (WHEA) Errors",          "CRITICAL"),
             ("VRM Overheating",                 "CRITICAL"),
             ("System RAM Exhaustion",           "WARNING"),
@@ -895,6 +895,7 @@ class TelemetryApp:
             ("SSD Lifespan Critical",           "CRITICAL"),
             ("SSD Wear Warning",                "WARNING"),
             ("Micro-Stuttering Detected",       "WARNING"),
+            ("Memory XMP/EXPO Profile Disabled", "WARNING"),
         ]
 
         _SEV_COLORS = {"CRITICAL": "#ff4d4d", "WARNING": "#f59e0b",
@@ -2493,7 +2494,10 @@ class TelemetryApp:
         gpu_eff_clock = self._col('GPU Effective Clock [MHz]')
         fclk_col = _a('fclk') or self._col('FCLK') or None
         uclk_col = _a('uclk') or next((c for c in df.columns if 'UCLK' in c), None)
-        mclk_col = _a('mclk') or self._col('MCLK') or self._col('MEMORY CLOCK') or self._col('DRAM CLOCK') or None
+        mclk_col = _a('mclk') or self._col_excl(['MCLK'],         excl=['GPU','VRAM','GDDR','VIDEO']) \
+                              or self._col_excl(['MEMORY CLOCK'], excl=['GPU','VRAM','GDDR','VIDEO']) \
+                              or self._col_excl(['DRAM CLOCK'],   excl=['GPU','VRAM','GDDR','VIDEO']) \
+                              or None
 
         def mx(col): return df[col].max() if col and col in df.columns else 0
         def avg(col): return df[col].mean() if col and col in df.columns else 0
@@ -2750,7 +2754,7 @@ class TelemetryApp:
         
         ram_load = self._col('PHYSICAL', 'MEMORY', 'LOAD')
         if ram_load and mx(ram_load) > self.sig_ram_exhaust_pct:
-            add("System RAM Exhaustion", "WARNING", 
+            add("System RAM Exhaustion", "CRITICAL", 
                 "Physical RAM is nearly full. ADVICE: Close browser tabs, Discord, or other background apps. Consider upgrading to 32GB RAM.", 
                 [f"Max Load: {mx(ram_load):.1f}%", f"Threshold: {self.sig_ram_exhaust_pct}%"],
                 mask=df[ram_load] > self.sig_ram_exhaust_pct, cols=[ram_load])
@@ -2764,7 +2768,7 @@ class TelemetryApp:
         if gpu_usage_col and cpu_usage_col:
             bn = (df[gpu_usage_col] < self.sig_cpu_bn_gpu_pct) & (df[cpu_usage_col] > self.sig_cpu_bn_cpu_pct)
             if bn.rolling(window=self.sig_cpu_bn_samples).sum().max() >= self.sig_cpu_bn_samples:
-                add("CPU Bottleneck", "WARNING", 
+                add("CPU Bottleneck", "INFO", 
                     "CPU is maxed out while GPU is idling. ADVICE: Increase resolution/graphics settings to shift load to GPU, or close background apps.", 
                     [f"Avg GPU Usage during spike: {df.loc[bn, gpu_usage_col].mean():.1f}%",
                      f"Thresholds: GPU < {self.sig_cpu_bn_gpu_pct}%, CPU > {self.sig_cpu_bn_cpu_pct}%"],
@@ -3054,8 +3058,7 @@ class TelemetryApp:
                     _psu_severity_score += 2
     
             if _psu_severity_score >= 2 and _psu_evidence:
-                sev = "CRITICAL" if _psu_severity_score >= 4 else "WARNING"
-                add("PSU Hardware Failure Indicators", sev,
+                add("PSU Hardware Failure Indicators", "CRITICAL",
                     "Multiple independent signals suggest PSU output degradation or failure. "
                     "Rail sag, voltage ripple, and power limit throttling are consistent with "
                     "an aging or undersized power supply. "
@@ -3133,7 +3136,7 @@ class TelemetryApp:
 
                 add(
                     name="GPU Power Limit Saturated",
-                    severity="WARNING",
+                    severity="INFO",
                     description=desc,
                     evidence=[f"Average Load: {avg_watts:.1f}W", f"Limit Duration: {hit_pct:.1f}%"]
                 )
@@ -3170,7 +3173,7 @@ class TelemetryApp:
             if os_jitter.rolling(window=self.sig_cpu_bn_samples).sum().max() >= self.sig_cpu_bn_samples:
                 add(
                     name="Background Process Interference",
-                    severity="INFO",
+                    severity="WARNING",
                     description=(
                         "High CPU activity detected that isn't being driven by the GPU. "
                         "This usually means a background task (Antivirus, Windows Update, or "
@@ -3203,7 +3206,7 @@ class TelemetryApp:
                     usage_gap = 100 - avg_gpu_load
                     add(
                         name="GPU Priority Conflict (Background App)",
-                        severity="WARNING" if usage_gap < 35 else "CRITICAL",
+                        severity="WARNING",
                         description=(
                             f"The GPU is losing ~{usage_gap:.1f}% potential throughput due to priority "
                             "contention. High frametime jitter was detected while the GPU had idle headroom. "
@@ -3403,6 +3406,33 @@ class TelemetryApp:
                         ]
                     )
 
+        if mclk_col:
+            m_med = df[mclk_col].median()
+            is_ddr5_mem = m_med > 2400
+            xmp_threshold = 3000 if is_ddr5_mem else 1600
+            stock_ceiling = 2400 if is_ddr5_mem else 1333
+            if m_med <= stock_ceiling:
+                effective = int(m_med * 2)
+                rated_guess = 6000 if is_ddr5_mem else 3200
+                add(
+                    name="Memory XMP/EXPO Profile Disabled",
+                    severity="WARNING",
+                    description=(
+                        f"RAM is running at its stock JEDEC speed ({effective} MT/s effective), "
+                        f"which is well below its likely rated XMP/EXPO profile (typically "
+                        f"{rated_guess}+ MT/s for modern kits). "
+                        "Running at stock speed increases memory latency and reduces bandwidth, "
+                        "directly impacting CPU-bound and latency-sensitive workloads. "
+                        "ADVICE: Enter BIOS and enable the XMP (Intel) or EXPO (AMD) profile."
+                    ),
+                    evidence=[
+                        f"Detected MCLK: {m_med:.0f} MHz ({effective} MT/s effective)",
+                        f"Stock JEDEC ceiling: {int(stock_ceiling * 2)} MT/s",
+                        "Action: Enable XMP/EXPO in BIOS → Save & Exit"
+                    ],
+                    cols=[mclk_col]
+                )
+
         if gpu_pwr_limit and gpu_clk_col:
             limit_active = df[gpu_pwr_limit].apply(lambda x: 1 if x == 'Yes' else 0)
             
@@ -3430,7 +3460,7 @@ class TelemetryApp:
             if usage_std > 15:
                 add(
                     name="Kernel Driver Latency (DPC/ISR)",
-                    severity="WARNING",
+                    severity="INFO",
                     description=(
                         "Detected high volatility in system utility. This usually indicates "
                         "a background driver (Wi-Fi, Audio, or USB) is causing micro-stutters."
@@ -3471,13 +3501,130 @@ class TelemetryApp:
                 if min_usb_v < 4.75:
                     add(
                         name="USB Rail Voltage Sag",
-                        severity="CRITICAL",
+                        severity="WARNING",
                         description="USB 5V rail dropped below safety limits. This causes peripheral disconnects.",
                         evidence=[f"Min USB Voltage: {min_usb_v:.2f}V"],
                         advice="Unplug non-essential USB devices or use a powered USB hub."
                     )
         
         return hits
+
+
+    def _build_narrative(self, results: list) -> str:
+        """Build a hedged plain-English summary paragraph from signature results."""
+        if not results:
+            return (
+                "No issues were detected in this session. All signatures passed based on "
+                "the available telemetry data."
+            )
+
+        SEV_WEIGHT = {'CRITICAL': 3, 'WARNING': 2, 'INFO': 1}
+
+        total_samples = max(len(self.df), 1)
+
+        def _span_frac(hit):
+            spans = hit.get('spans') or []
+            if not spans:
+                return 0.0
+            xv = getattr(self, '_sig_timeline_x_vals', None)
+            if xv is None or len(xv) == 0:
+                return 0.0
+            total_x = xv[-1] - xv[0]
+            if total_x <= 0:
+                return 0.0
+            covered = sum(
+                max(0, xv[min(e, len(xv)-1)] - xv[max(s, 0)])
+                for s, e in spans
+            )
+            return min(covered / total_x, 1.0)
+
+        scored = []
+        for r in results:
+            w   = SEV_WEIGHT.get(r.get('severity', 'INFO'), 1)
+            frac = _span_frac(r)
+            score = w * (1 + frac)
+            scored.append((score, r))
+        scored.sort(key=lambda x: -x[0])
+
+        sevs = {r.get('severity') for r in results}
+        if 'CRITICAL' in sevs:
+            health = 'issues requiring attention'
+            health_opener = 'Several potential concerns were identified in this session'
+        elif 'WARNING' in sevs:
+            health = 'potential concerns'
+            health_opener = 'Some areas of potential concern were identified in this session'
+        else:
+            health = 'minor observations'
+            health_opener = 'Only minor observations were noted in this session'
+
+        CAUSAL_PAIRS = [
+            ('VRM Overheating',           'CPU Thermal Throttling',
+             'VRM overheating was also detected, which may have contributed to thermal throttling'),
+            ('CPU Thermal Throttling',    'CPU Power Limit Reached',
+             'CPU power limits and thermal throttling were both present, suggesting the CPU may have been operating near its sustained limits'),
+            ('GPU Overheating (Hotspot)', 'Micro-Stuttering Detected',
+             'GPU overheating coincided with stuttering events, which may be related'),
+            ('VRAM Swapping / System Memory Spillover', 'Micro-Stuttering Detected',
+             'VRAM spillover into system memory coincided with stuttering, which is a common relationship'),
+            ('PSU Hardware Failure Indicators', 'GPU Driver TDR (Timeout)',
+             'PSU stress indicators and GPU timeouts were both present in this session — these can sometimes be related'),
+            ('System RAM Exhaustion',     'Virtual Memory Limit',
+             'Both physical RAM exhaustion and virtual memory pressure were detected, suggesting the system may have been significantly memory-constrained'),
+            ('Fan Stall Detected',        'CPU Thermal Throttling',
+             'A fan stall was detected alongside thermal throttling, which may be a contributing factor'),
+            ('Fan Stall Detected',        'GPU Overheating (Hotspot)',
+             'A fan stall was detected alongside GPU overheating, which may be a contributing factor'),
+            ('Memory XMP/EXPO Profile Disabled', 'CPU Bottleneck',
+             'Running RAM at stock speed alongside a CPU bottleneck may suggest the system is more latency-sensitive than typical'),
+        ]
+
+        hit_names = {r['name'] for r in results}
+        causal_notes = []
+        seen_pairs = set()
+        for a, b, note in CAUSAL_PAIRS:
+            if a in hit_names and b in hit_names:
+                key = tuple(sorted([a, b]))
+                if key not in seen_pairs:
+                    causal_notes.append(note)
+                    seen_pairs.add(key)
+
+        sentences = []
+        for score, r in scored[:3]:
+            name = r['name']
+            sev  = r.get('severity', 'INFO')
+            frac = _span_frac(r)
+
+            ev_vals = []
+            for ev in r.get('evidence', []):
+                import re as _re
+                nums = _re.findall(r'[\d]+\.?\d*', str(ev))
+                if nums:
+                    ev_vals.append((str(ev), nums[0]))
+
+            frac_str = f', active for approximately {frac*100:.0f}% of the session,' if frac > 0.05 else ''
+
+            if sev == 'CRITICAL':
+                opener = f'{name} was detected{frac_str} and may warrant investigation'
+            elif sev == 'WARNING':
+                opener = f'{name} was detected{frac_str}'
+            else:
+                opener = f'{name} was noted{frac_str}'
+
+            if ev_vals:
+                label, val = ev_vals[0]
+                opener += f' (logged value: {label.strip()})'
+
+            sentences.append(opener + '.')
+
+        parts = [health_opener + '.']
+        parts += sentences
+        if causal_notes:
+            parts.append('Additionally, ' + '; and '.join(causal_notes) + '.')
+        parts.append(
+            'This summary is based on logged telemetry and should be treated as a '
+            'starting point for investigation, not a definitive diagnosis.'
+        )
+        return ' '.join(parts)
 
     def _open_alias_manager(self):
         """Open the sensor alias manager — view, delete individual aliases, or clear all."""
@@ -4362,6 +4509,7 @@ class TelemetryApp:
 
                 _set_status("Running signature analysis\u2026", 0.80)
                 sigs = self._run_signatures()
+                sig_narrative = self._build_narrative(sigs)
                 _SEV_CLASS = {'CRITICAL': 'sev-crit', 'WARNING': 'sev-warn', 'INFO': 'sev-info'}
                 _SEV_ICON  = {'CRITICAL': '\U0001f534', 'WARNING': '\U0001f7e1', 'INFO': '\U0001f535'}
                 sig_cards = ""
@@ -4450,6 +4598,7 @@ body{{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sa
 .sev-warn .sev-badge{{background:var(--warn);color:#000;}}
 .sev-info .sev-badge{{background:var(--info);color:#000;}}
 .ev-list{{margin:8px 0 0 16px;color:#94a3b8;font-size:12px;font-family:monospace;}}
+.narrative-box{{background:var(--card);border-left:4px solid var(--accent2);border-radius:var(--radius);padding:16px 20px;font-size:13.5px;line-height:1.7;color:var(--fg);margin-bottom:4px;}}
 .ev-list li{{margin-bottom:2px;}}
 figure{{margin-bottom:20px;}}
 figure img{{width:100%;border-radius:8px;border:1px solid var(--border);display:block;}}
@@ -4492,6 +4641,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
   <a href="#stats">\U0001f4cb Per-Sensor Statistics</a>
 </div>
 <div class="section" id="hw"><div class="section-title"><span>\U0001f527</span> Detected Hardware</div>{hw_section}</div>
+<div class="section" id="narrative"><div class="section-title"><span>\U0001f4dd</span> Session Summary</div><div class="narrative-box">{sig_narrative}</div></div>
 <div class="section" id="issues"><div class="section-title"><span>\U0001f6a8</span> Issues &amp; Signature Hits</div>{sig_cards}</div>
 <div class="section" id="oos"><div class="section-title"><span>\u26a0</span> Out-of-Spec Sensors</div>{oos_section}</div>
 <div class="section" id="charts-sel"><div class="section-title"><span>\U0001f4c8</span> Selected Sensor Charts</div>{charts_selected_html if charts_selected_html else '<p class="muted">No sensors selected.</p>'}</div>
@@ -4872,6 +5022,13 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                                  "ENDURANCE REMAINING")
                         ),
 
+                        "Memory XMP/EXPO Profile Disabled": (
+                            _any("MCLK", "MEMORY CLOCK", "DRAM CLOCK",
+                                 "RAM CLOCK", "MEM FREQ", "MEMORY FREQUENCY",
+                                 "DRAM FREQUENCY", "RAM FREQUENCY",
+                                 "MEMORY SPEED", "DRAM SPEED")
+                        ),
+
                         "Micro-Stuttering Detected": (
                             _any("FRAME TIME", "FRAMETIME", "FPS", "FRAME RATE",
                                  "GPU BUSY", "CPU BUSY", "GPU WAIT", "CPU WAIT",
@@ -4977,6 +5134,22 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                         ),
                     }
                     return m.get(sig_name, set()) & cols
+
+                narrative_text = self._build_narrative(results)
+                narr_bg = "#1a1a2e" if is_dark else "#eef4fb"
+                narr_fg = "#a0c4ff" if is_dark else "#1a3a5c"
+                narr_frame = tk.Frame(body, bg=narr_bg, padx=14, pady=10)
+                narr_frame.pack(fill=tk.X, pady=(0, 10), padx=2)
+                tk.Label(narr_frame,
+                         text="Session Summary",
+                         font=('Segoe UI', 9, 'bold'),
+                         bg=narr_bg, fg=narr_fg).pack(anchor='w')
+                tk.Label(narr_frame,
+                         text=narrative_text,
+                         font=('Segoe UI', 9),
+                         bg=narr_bg, fg=fg,
+                         wraplength=620,
+                         justify='left').pack(anchor='w', pady=(4, 0))
 
                 for r in results:
 
@@ -5894,23 +6067,32 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             if not spans:
                 s, e = hit.get('start_idx'), hit.get('end_idx')
                 spans = [(s, e)] if s is not None else []
-            for span in spans:
-                entries.append(span)
+            for i, span in enumerate(spans):
+                x0 = span[0] if span else 0
+                x1 = span[1] if span else x0
+                entries.append((x0, x1, hit.get('name', '') if i == 0 else ''))
         if not entries:
             return 1
-        row_end = []
-        for span in entries:
-            x0 = span[0] if span else 0
-            x1 = span[1] if span else x0
+        total = max((x1 for _, x1, _ in entries), default=1)
+        x_range = max(total, 1)
+        CHAR_W = x_range * 0.012
+        BAR_GAP = x_range * 0.003
+        row_right = []
+        for x0, x1, name in entries:
+            if name:
+                half_w = len(name[:20]) * CHAR_W / 2
+                claimed = max(x1, (x0 + x1) / 2 + half_w)
+            else:
+                claimed = x1
             placed = False
-            for i, rx in enumerate(row_end):
-                if x0 > rx:
-                    row_end[i] = x1
+            for i, rx in enumerate(row_right):
+                if x0 > rx + BAR_GAP:
+                    row_right[i] = claimed
                     placed = True
                     break
             if not placed:
-                row_end.append(x1)
-        return max(1, len(row_end))
+                row_right.append(claimed)
+        return max(1, len(row_right))
 
     def _sensors_for_sig(self, sig_name: str) -> set:
         cols = set(self.df.columns)
@@ -5965,6 +6147,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             "PCIe Bus Signal Instability": _any("RECEIVER ERROR","REPLAY COUNT","REPLAY ROLLOVER","BAD TLP","BAD DLLP","RECOVERY COUNT","CORRECTABLE ERROR COUNT","NON-FATAL ERROR COUNT","FATAL ERROR COUNT","UNSUPPORTED REQUEST","PCIE LANE","LCRC ERROR","NAKS SENT","NAKS RECEIVED","PCI EXPRESS ERROR","PCIE ERROR"),
             "Kernel Driver Latency (DPC/ISR)": _any("DPC","SYSTEM INTERRUPT","LATENCY","FRAME TIME","FRAMETIME","CPU BUSY","CPU WAIT","DPC LATENCY","ISR LATENCY","INTERRUPT LATENCY","KERNEL LATENCY","DPC/ISR","DEFERRED PROCEDURE"),
             "Laptop Power Delivery Failure (Limp Mode)": (_any("BATTERY","CHARGE","DISCHARGE","AC ADAPTER","REMAINING CAPACITY","CHARGE LEVEL","CHARGE RATE","BATTERY VOLTAGE","BATTERY CAPACITY","CHARGE CURRENT","DISCHARGE RATE","WEAR LEVEL","FULL CHARGE CAPACITY","DESIGN CAPACITY","POWER SOURCE","AC/DC","PLUGGED IN","ON BATTERY","LAPTOP BATTERY","BATTERY REMAINING","BATTERY POWER","DISCHARGE CURRENT") | _cols("CPU","POWER") | _cols("GPU","POWER")),
+            "Memory XMP/EXPO Profile Disabled": _any("MCLK","MEMORY CLOCK","DRAM CLOCK","RAM CLOCK","MEM FREQ","MEMORY FREQUENCY","DRAM FREQUENCY","RAM FREQUENCY","MEMORY SPEED","DRAM SPEED"),
             "Phantom Clock Cap": _any("GPU CLOCK","GPU CORE CLOCK","GPU EFFECTIVE CLOCK","GPU CROSSBAR","GPU VIDEO CLOCK","GPU MEMORY CLOCK","PERFORMANCE LIMIT","POWER LIMIT","THERMAL LIMIT","RELIABILITY VOLTAGE","OPERATING VOLTAGE","GPU BOOST CLOCK","BOOST CLOCK","GPU BASE CLOCK","BASE CLOCK","PERFCAP REASON","CLOCK CAP","CLOCK LIMIT"),
         }
         return m.get(sig_name, set()) & cols
@@ -6034,31 +6217,51 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                     has_span = False
                 entries.append((hit, x0, x1, has_span, span_idx == 0))
 
-        GAP = x_range * 0.003
+        # Minimum gap between bar edges
+        BAR_GAP = x_range * 0.003
+        # Estimated x-width that one character occupies as a fraction of x_range
+        CHAR_WIDTH = x_range * 0.012
 
-        # Assign rows greedily
-        row_end_x = []
+        def _label_budget(x0, x1, name):
+            """Return (label_text, label_half_width) clipped to fit the span."""
+            span_w = x1 - x0
+            max_chars = max(6, int(span_w / CHAR_WIDTH)) if span_w > 0 else 20
+            text = name[:max_chars] + ('...' if len(name) > max_chars else '')
+            half_w = len(text) * CHAR_WIDTH / 2
+            return text, half_w
+
+        # Greedy row packing: track rightmost claimed x per row,
+        # including label overhang beyond the bar's right edge.
+        row_right = []
         entry_rows = []
-        for (_, x0, x1, _, _) in entries:
+        entry_labels = []
+
+        for (hit, x0, x1, has_span, first_span) in entries:
+            lbl_text, half_w = _label_budget(x0, x1, hit['name'])
+            center = (x0 + x1) / 2
+            claimed_right = max(x1, center + half_w)
+
             placed = False
-            for i, rx in enumerate(row_end_x):
-                if x0 > rx + GAP:
-                    row_end_x[i] = x1
+            for i, rx in enumerate(row_right):
+                if x0 > rx + BAR_GAP:
+                    row_right[i] = claimed_right
                     entry_rows.append(i)
                     placed = True
                     break
             if not placed:
-                entry_rows.append(len(row_end_x))
-                row_end_x.append(x1)
+                entry_rows.append(len(row_right))
+                row_right.append(claimed_right)
 
-        n_rows = max(1, len(row_end_x))
+            entry_labels.append(lbl_text)
+
+        n_rows = max(1, len(row_right))
         row_h  = 1.0 / n_rows
 
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(0, 1)
 
         hit_patches = []
-        for (hit, x0, x1, has_span, first_span), row in zip(entries, entry_rows):
+        for (hit, x0, x1, has_span, first_span), row, lbl_text in zip(entries, entry_rows, entry_labels):
             color  = sev_colors.get(hit.get('severity', 'INFO'), '#3498db')
             y_bot  = 1.0 - (row + 1) * row_h + 0.02
             y_top  = 1.0 - row * row_h        - 0.02
@@ -6069,19 +6272,13 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                                    color=color, alpha=0.6, zorder=3)
                 ax.plot([x0, x0], [y_bot, y_top], color=color, lw=1.5, alpha=0.9, zorder=4)
                 ax.plot([x1, x1], [y_bot, y_top], color=color, lw=1.5, alpha=0.9, zorder=4)
-                ax.text(x0, y_bot - 0.02, _fmt(x0),
-                        ha='left', va='top', fontsize=5, color=color, clip_on=True, zorder=5)
-                ax.text(x1, y_bot - 0.02, _fmt(x1),
-                        ha='right', va='top', fontsize=5, color=color, clip_on=True, zorder=5)
             else:
                 patch = ax.axvline(x0, ymin=y_bot, ymax=y_top,
                                    color=color, lw=2.5, alpha=0.85, zorder=3)
-                ax.text(x0, y_bot - 0.02, _fmt(x0),
-                        ha='center', va='top', fontsize=5, color=color, clip_on=True, zorder=5)
 
-            if first_span:
+            if lbl_text:
                 y_mid = (y_bot + y_top) / 2
-                ax.text(center, y_mid, hit['name'],
+                ax.text(center, y_mid, lbl_text,
                         ha='center', va='center', fontsize=6,
                         color='white', fontweight='bold', clip_on=True, zorder=5)
 
@@ -6126,13 +6323,23 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
 
         if best and best_dist < threshold:
             patch, hit, center, y_bot, y_top = best
-            icon = '🔴' if hit['severity'] == 'CRITICAL' else '🟡' if hit['severity'] == 'WARNING' else '🔵'
+            icon = '[CRIT]' if hit['severity'] == 'CRITICAL' else '[WARN]' if hit['severity'] == 'WARNING' else '[INFO]'
             lines = [f"{icon}  {hit['name']}"]
+            spans = hit.get('spans', [])
+            if spans and hasattr(self, '_sig_timeline_x_vals'):
+                xv = self._sig_timeline_x_vals
+                x0 = xv[max(0, spans[0][0])]
+                x1 = xv[min(len(xv) - 1, spans[-1][1])]
+                dur = x1 - x0
+                def _fe(v):
+                    try: return self._format_elapsed(v)
+                    except Exception: return f'{v:.1f}'
+                lines.append(f"  {_fe(x0)}  →  {_fe(x1)}  ({_fe(dur)} duration)")
             for ev in hit.get('evidence', [])[:5]:
                 lines.append(f"  • {ev}")
             if hit.get('cols'):
                 lines.append(f"  Sensors: {', '.join(c[:35] for c in hit['cols'][:3])}")
-            lines.append("  [click to select sensors & zoom]")
+            lines.append("  [click to select sensors]")
             tt.set_text('\n'.join(lines))
             tt.xy = (xc, yc)
             tt.set_visible(True)
@@ -6199,7 +6406,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             hits = []
         if hits:
             n_rows   = max(1, self._calc_timeline_rows(hits))
-            tl_ratio = min(n_rows * 0.045, 0.25)
+            tl_ratio = max(0.07, min(n_rows * 0.06, 0.28))
             gs = GridSpec(2, 1, figure=self.fig,
                           height_ratios=[tl_ratio, 1 - tl_ratio],
                           hspace=0.04)
