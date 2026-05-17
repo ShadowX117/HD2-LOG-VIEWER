@@ -38,7 +38,6 @@ def _safe_image_del(self):
 _tk_module.Variable.__del__ = _safe_var_del
 _tk_module.Image.__del__ = _safe_image_del
 
-
 _EXCLUDE_RAW = frozenset([
     '[MB]', '[GB]', '[A]', 'PWM', '(STATIC)',
     'THERMAL LIMIT', 'POWER LIMIT', 'TDC LIMIT', 'PPT LIMIT', 'EDC LIMIT',
@@ -59,13 +58,171 @@ _TEMP_TRIGGERS = frozenset(['TEMP', '°C', 'HOTSPOT', 'TDIE', 'TCTL'])
 
 GROUPS_FILE         = "groups.json"
 SENSOR_ALIASES_FILE = "sensor_aliases.json"
-CURRENT_VERSION = "1.5.0"
+THEME_FILE          = "theme.json"
+
+_DEFAULT_DARK_THEME = {
+    "bg":      "#121212",
+    "bg2":     "#1e1e1e",
+    "bg3":     "#2a2a2a",
+    "fg":      "#e0e0e0",
+    "accent":  "#1f6aa5",
+    "accent2": "#4f8ef7",
+
+    "plot_c0": "#4f8ef7",
+    "plot_c1": "#2ecc71",
+    "plot_c2": "#e74c3c",
+    "plot_c3": "#f39c12",
+    "plot_c4": "#9b59b6",
+    "plot_c5": "#1abc9c",
+
+    "hm_safe":  "#1a7a3a",
+    "hm_ok":    "#2ecc71",
+    "hm_warn":  "#f1c40f",
+    "hm_hot":   "#e67e22",
+    "hm_crit":  "#922b21",
+    "hm_max":   "#641e16",
+}
+_DEFAULT_LIGHT_THEME = {
+    "bg":      "#f8f9fa",
+    "bg2":     "#ffffff",
+    "bg3":     "#e9ecef",
+    "fg":      "#212529",
+    "accent":  "#3498db",
+    "accent2": "#1a5fa8",
+
+    "plot_c0": "#1f6aa5",
+    "plot_c1": "#27ae60",
+    "plot_c2": "#c0392b",
+    "plot_c3": "#d35400",
+    "plot_c4": "#8e44ad",
+    "plot_c5": "#16a085",
+
+    "hm_safe":  "#1a7a3a",
+    "hm_ok":    "#2ecc71",
+    "hm_warn":  "#f1c40f",
+    "hm_hot":   "#e67e22",
+    "hm_crit":  "#922b21",
+    "hm_max":   "#641e16",
+}
+
+BUILTIN_PRESETS = {
+    "Dark (Default)":  {"_dark": True,  **_DEFAULT_DARK_THEME},
+    "Light (Default)": {"_dark": False, **_DEFAULT_LIGHT_THEME},
+    "Slate":    {"_dark": True,
+                      "bg": "#0d1117", "bg2": "#161b22", "bg3": "#21262d",
+                      "fg": "#c9d1d9", "accent": "#58a6ff", "accent2": "#79c0ff",
+                      "plot_c0": "#58a6ff", "plot_c1": "#3fb950", "plot_c2": "#f85149",
+                      "plot_c3": "#d29922", "plot_c4": "#bc8cff", "plot_c5": "#39c5cf",
+                      "hm_safe": "#0d4429", "hm_ok": "#2ea043", "hm_warn": "#9e6a03",
+                      "hm_hot":  "#bd561d", "hm_crit": "#8b1a1a", "hm_max": "#5a0f0f"},
+    "Teal":  {"_dark": True,
+                      "bg": "#002b36", "bg2": "#073642", "bg3": "#586e75",
+                      "fg": "#839496", "accent": "#268bd2", "accent2": "#2aa198",
+                      "plot_c0": "#268bd2", "plot_c1": "#2aa198", "plot_c2": "#dc322f",
+                      "plot_c3": "#b58900", "plot_c4": "#6c71c4", "plot_c5": "#859900",
+                      "hm_safe": "#073642", "hm_ok": "#859900", "hm_warn": "#b58900",
+                      "hm_hot":  "#cb4b16", "hm_crit": "#dc322f", "hm_max": "#6e1717"},
+    "Forest Green":          {"_dark": True,
+                      "bg": "#1a2d1a", "bg2": "#243324", "bg3": "#2d3f2d",
+                      "fg": "#d4e6d4", "accent": "#4caf50", "accent2": "#81c784",
+                      "plot_c0": "#81c784", "plot_c1": "#4fc3f7", "plot_c2": "#ef9a9a",
+                      "plot_c3": "#ffe082", "plot_c4": "#ce93d8", "plot_c5": "#80cbc4",
+                      "hm_safe": "#1b5e20", "hm_ok": "#4caf50", "hm_warn": "#f9a825",
+                      "hm_hot":  "#e65100", "hm_crit": "#b71c1c", "hm_max": "#7f0000"},
+    "Crimson":    {"_dark": True,
+                      "bg": "#1a0a0a", "bg2": "#2d1010", "bg3": "#3f1818",
+                      "fg": "#f0d0d0", "accent": "#ef5350", "accent2": "#ff8a80",
+                      "plot_c0": "#ff8a80", "plot_c1": "#69f0ae", "plot_c2": "#ffab40",
+                      "plot_c3": "#40c4ff", "plot_c4": "#ea80fc", "plot_c5": "#ccff90",
+                      "hm_safe": "#1a3d1a", "hm_ok": "#43a047", "hm_warn": "#fb8c00",
+                      "hm_hot":  "#e53935", "hm_crit": "#b71c1c", "hm_max": "#7f0000"},
+    "Steel":        {"_dark": True,
+                      "bg": "#2e3440", "bg2": "#3b4252", "bg3": "#434c5e",
+                      "fg": "#eceff4", "accent": "#88c0d0", "accent2": "#81a1c1",
+                      "plot_c0": "#88c0d0", "plot_c1": "#a3be8c", "plot_c2": "#bf616a",
+                      "plot_c3": "#ebcb8b", "plot_c4": "#b48ead", "plot_c5": "#8fbcbb",
+                      "hm_safe": "#2d4a3e", "hm_ok": "#a3be8c", "hm_warn": "#ebcb8b",
+                      "hm_hot":  "#d08770", "hm_crit": "#bf616a", "hm_max": "#7a3f43"},
+    "Lime":      {"_dark": True,
+                      "bg": "#272822", "bg2": "#3e3d32", "bg3": "#49483e",
+                      "fg": "#f8f8f2", "accent": "#a6e22e", "accent2": "#66d9e8",
+                      "plot_c0": "#a6e22e", "plot_c1": "#66d9e8", "plot_c2": "#f92672",
+                      "plot_c3": "#fd971f", "plot_c4": "#ae81ff", "plot_c5": "#e6db74",
+                      "hm_safe": "#1d3d1d", "hm_ok": "#a6e22e", "hm_warn": "#e6db74",
+                      "hm_hot":  "#fd971f", "hm_crit": "#f92672", "hm_max": "#7a1234"},
+    "Violet":        {"_dark": True,
+                      "bg": "#0a0e1a", "bg2": "#0f1526", "bg3": "#1a2340",
+                      "fg": "#e8f0ff", "accent": "#57c7d4", "accent2": "#a78bfa",
+                      "plot_c0": "#57c7d4", "plot_c1": "#a78bfa", "plot_c2": "#34d399",
+                      "plot_c3": "#f472b6", "plot_c4": "#fbbf24", "plot_c5": "#60a5fa",
+                      "hm_safe": "#064e3b", "hm_ok": "#34d399", "hm_warn": "#fbbf24",
+                      "hm_hot":  "#f97316", "hm_crit": "#f43f5e", "hm_max": "#7f1d1d"},
+    "Lavender":         {"_dark": False,
+                      "bg": "#fafafa", "bg2": "#ffffff", "bg3": "#e2e8f0",
+                      "fg": "#1a202c", "accent": "#5a67d8", "accent2": "#667eea",
+                      "plot_c0": "#5a67d8", "plot_c1": "#38a169", "plot_c2": "#e53e3e",
+                      "plot_c3": "#dd6b20", "plot_c4": "#805ad5", "plot_c5": "#319795",
+                      "hm_safe": "#1a7a3a", "hm_ok": "#2ecc71", "hm_warn": "#f1c40f",
+                      "hm_hot":  "#e67e22", "hm_crit": "#922b21", "hm_max": "#641e16"},
+    "Cobalt":     {"_dark": False,
+                      "bg": "#ffffff", "bg2": "#f5f5f5", "bg3": "#e0e0e0",
+                      "fg": "#000000", "accent": "#0072b2", "accent2": "#56b4e9",
+                      "plot_c0": "#0072b2", "plot_c1": "#e69f00", "plot_c2": "#009e73",
+                      "plot_c3": "#cc79a7", "plot_c4": "#56b4e9", "plot_c5": "#d55e00",
+                      "hm_safe": "#009e73", "hm_ok": "#56b4e9", "hm_warn": "#e69f00",
+                      "hm_hot":  "#d55e00", "hm_crit": "#cc79a7", "hm_max": "#0072b2"},
+    "Neon Blue":    {"_dark": True,
+                      "bg": "#161616", "bg2": "#262626", "bg3": "#393939",
+                      "fg": "#f4f4f4", "accent": "#0f62fe", "accent2": "#4589ff",
+                      "plot_c0": "#4589ff", "plot_c1": "#42be65", "plot_c2": "#fa4d56",
+                      "plot_c3": "#f1c21b", "plot_c4": "#be95ff", "plot_c5": "#3ddbd9",
+                      "hm_safe": "#044317", "hm_ok": "#42be65", "hm_warn": "#f1c21b",
+                      "hm_hot":  "#ff832b", "hm_crit": "#fa4d56", "hm_max": "#750e13"},
+    "Sand":     {"_dark": False,
+                      "bg": "#f8f8f8", "bg2": "#ffffff", "bg3": "#e8e8e8",
+                      "fg": "#2b2b2b", "accent": "#332288", "accent2": "#44aa99",
+                      "plot_c0": "#332288", "plot_c1": "#44aa99", "plot_c2": "#aa3377",
+                      "plot_c3": "#88ccee", "plot_c4": "#ddcc77", "plot_c5": "#999933",
+                      "hm_safe": "#44aa99", "hm_ok": "#88ccee", "hm_warn": "#ddcc77",
+                      "hm_hot":  "#cc6677", "hm_crit": "#aa3377", "hm_max": "#332288"},
+    "Helldivers 2":  {"_dark": True,
+                      "bg": "#0a0c10", "bg2": "#111318", "bg3": "#1e2330",
+                      "fg": "#e8dfc8", "accent": "#f0c030", "accent2": "#c8a820",
+                      "plot_c0": "#f0c030", "plot_c1": "#e03020", "plot_c2": "#4090d0",
+                      "plot_c3": "#60c060", "plot_c4": "#c060c0", "plot_c5": "#e08020",
+                      "hm_safe": "#1a3a1a", "hm_ok": "#60c060", "hm_warn": "#f0c030",
+                      "hm_hot":  "#e08020", "hm_crit": "#e03020", "hm_max": "#8b0000"},
+    "Monochrome": {"_dark": True,
+                      "bg": "#000000", "bg2": "#1a1a1a", "bg3": "#333333",
+                      "fg": "#ffffff", "accent": "#ffff00", "accent2": "#00ffff",
+                      "plot_c0": "#ffff00", "plot_c1": "#00ffff", "plot_c2": "#ff6600",
+                      "plot_c3": "#ff00ff", "plot_c4": "#00ff00", "plot_c5": "#ffffff",
+                      "hm_safe": "#004400", "hm_ok": "#00cc00", "hm_warn": "#ffff00",
+                      "hm_hot":  "#ff6600", "hm_crit": "#ff0000", "hm_max": "#ffffff"},
+}
+
+def load_theme() -> dict:
+    try:
+        if Path(THEME_FILE).exists():
+            with open(THEME_FILE, 'r') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def save_theme(theme: dict):
+    try:
+        with open(THEME_FILE, 'w') as f:
+            json.dump(theme, f, indent=4)
+    except Exception:
+        pass
+CURRENT_VERSION = "1.5.1"
 GITHUB_REPO = "ERRORX2/HD2-LOG-VIEWER"
 
 def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delta_mode: bool = False,
                 ignored_version: str = "", updates_disabled: bool = False, time_mode: bool = False,
                 thresholds: Dict = None, heatmap_mode: bool = False, disabled_sigs: list = None,
-                sig_timeline_enabled: bool = True):
+                sig_timeline_enabled: bool = True, tooltip_enabled: bool = True):
     config = {
         "groups": groups_dict,
         "settings": {
@@ -79,6 +236,7 @@ def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delt
             "thresholds": thresholds or {},
             "disabled_sigs": disabled_sigs or [],
             "sig_timeline_enabled": sig_timeline_enabled,
+            "tooltip_enabled": tooltip_enabled,
         }
     }
     try:
@@ -87,9 +245,9 @@ def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delt
     except:
         pass
 
-def load_config() -> Tuple[Dict, bool, bool, bool, str, bool, bool, Dict, bool, list, bool]:
+def load_config() -> Tuple[Dict, bool, bool, bool, str, bool, bool, Dict, bool, list, bool, bool]:
     if not Path(GROUPS_FILE).exists():
-        return {}, False, False, False, "", False, False, {}, False, [], True
+        return {}, False, False, False, "", False, False, {}, False, [], True, True
     try:
         with open(GROUPS_FILE, 'r') as f:
             data = json.load(f)
@@ -105,8 +263,9 @@ def load_config() -> Tuple[Dict, bool, bool, bool, str, bool, bool, Dict, bool, 
                         sets.get("thresholds", {}),
                         sets.get("heatmap_mode", False),
                         sets.get("disabled_sigs", []),
-                        sets.get("sig_timeline_enabled", True))
-            return data if isinstance(data, dict) else {}, False, False, False, "", False, False, {}, False, [], True
+                        sets.get("sig_timeline_enabled", True),
+                        sets.get("tooltip_enabled", True))
+            return data if isinstance(data, dict) else {}, False, False, False, "", False, False, {}, False, [], True, True
     except:
         return {}, False, False, False, "", False, False, {}, False, [], False, True
 
@@ -163,11 +322,11 @@ def check_for_updates(root: tk.Tk, ignored_version: str = "", updates_disabled: 
 
         try:
             is_dark = root._app_ref.is_dark
+            _t = root._app_ref._get_theme()
         except Exception:
             is_dark = False
-        bg     = "#121212" if is_dark else "#f8f9fa"
-        fg     = "#e0e0e0" if is_dark else "#212529"
-        accent = "#1f6aa5" if is_dark else "#3498db"
+            _t = _DEFAULT_DARK_THEME
+        bg = _t["bg"]; fg = _t["fg"]; accent = _t["accent"]
 
         dialog.configure(bg=bg)
 
@@ -534,9 +693,10 @@ class TelemetryApp:
 
         (self.custom_groups, self.is_dark, self.multi_mode, self.delta_mode,
          self.ignored_version, self.updates_disabled, self.time_mode,
-         saved_thresholds, self.heatmap_mode, disabled_sigs_list, sig_tl_enabled) = load_config()
+         saved_thresholds, self.heatmap_mode, disabled_sigs_list, sig_tl_enabled, tooltip_en) = load_config()
         self.sig_timeline_enabled = sig_tl_enabled
         self.disabled_sigs = set(disabled_sigs_list)
+        self.custom_theme  = load_theme()
 
         self.vars = {}
         self.cb_widgets = {}
@@ -544,6 +704,7 @@ class TelemetryApp:
         self.group_map = {}
         self.cursor_lines = []
         self.cursor_text = None
+        self._tooltip_enabled = tooltip_en
         self.filter_active = False
         self.debug_mode    = False
 
@@ -699,10 +860,7 @@ class TelemetryApp:
     def _open_limits_editor(self):
         """Open a scrollable dialog to view and edit all detection thresholds."""
         is_dark = self.is_dark
-        bg  = "#121212" if is_dark else "#f8f9fa"
-        fg  = "#e0e0e0" if is_dark else "#212529"
-        bg2 = "#1e1e1e" if is_dark else "#ffffff"
-        accent = "#1f6aa5" if is_dark else "#3498db"
+        _t = self._get_theme(); bg = _t["bg"]; bg2 = _t["bg2"]; fg = _t["fg"]; accent = _t["accent"]; bg3 = _t["bg3"]
 
         dialog = tk.Toplevel(self.root)
         dialog.title("Settings")
@@ -718,7 +876,8 @@ class TelemetryApp:
         outer = tk.Frame(dialog, bg=bg)
         outer.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 0))
         canvas = tk.Canvas(outer, bg=bg, highlightthickness=0)
-        sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        sb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview,
+                        bg=bg3, troughcolor=bg, activebackground=accent)
         body = tk.Frame(canvas, bg=bg)
         win_id = canvas.create_window((0, 0), window=body, anchor="nw")
         body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
@@ -792,7 +951,7 @@ class TelemetryApp:
             if key in self.temp_limits:
                 row(label, f"temp_{key}", self.temp_limits[key], "°C")
 
-        section("Voltage Rails — Safe Range (V)")
+        section("Voltage Rails - Safe Range (V)")
         range_row("+12V Rail",   "rail_12v_lo",   "rail_12v_hi",   *self.volt_rails['+12V'],  "V")
         range_row("+5V Rail",    "rail_5v_lo",    "rail_5v_hi",    *self.volt_rails['+5V'],   "V")
         range_row("+3.3V Rail",  "rail_33v_lo",   "rail_33v_hi",   *self.volt_rails['+3.3V'], "V")
@@ -1021,7 +1180,7 @@ class TelemetryApp:
                     dialog.destroy()
 
             except ValueError:
-                status_var.set("⚠ Invalid value — fix before closing")
+                status_var.set("⚠ Invalid value - fix before closing")
                 status_lbl.config(fg="#e74c3c")
 
         def _apply():
@@ -1099,7 +1258,7 @@ class TelemetryApp:
     def _on_ignore_version(self, version: str):
         self.ignored_version = version
         self._save_config()
-        self.show_toast(f"Ignored v{version} — you'll be notified about future versions")
+        self.show_toast(f"Ignored v{version} - you'll be notified about future versions")
 
     def _on_disable_updates(self):
         self.updates_disabled = True
@@ -1162,7 +1321,8 @@ class TelemetryApp:
         save_config(self.custom_groups, self.is_dark, self.multi_mode, self.delta_mode,
                     self.ignored_version, self.updates_disabled, self.time_mode, thresholds,
                     self.heatmap_mode, list(self.disabled_sigs),
-                    getattr(self, 'sig_timeline_enabled', True))
+                    getattr(self, 'sig_timeline_enabled', True),
+                    getattr(self, '_tooltip_enabled', True))
 
     def show_toast(self, message: str, duration: int = 2000):
         toast = tk.Toplevel(self.root)
@@ -1183,6 +1343,15 @@ class TelemetryApp:
         self.is_dark = not self.is_dark
         self._apply_theme_colors()
         self.update_plot()
+        self._save_config()
+
+    def _toggle_tooltip(self):
+        self._tooltip_enabled = not getattr(self, '_tooltip_enabled', True)
+        self._tooltip_btn.config(
+            text="Tooltip: ON" if self._tooltip_enabled else "Tooltip: OFF")
+        if not self._tooltip_enabled:
+            self._clear_cursors()
+            self.canvas_widget.draw_idle()
         self._save_config()
 
     def _toggle_multi(self):
@@ -1212,22 +1381,24 @@ class TelemetryApp:
         self.update_plot()
         self._save_config()
 
-
     def _draw_heatmap(self, sel: list):
         """Draw a heatmap with absolute thresholds for known sensor types,
         per-sensor normalization as fallback, and discrete color bands."""
-        is_dark = self.is_dark
-        bg_color   = "#121212" if is_dark else "white"
-        text_color = "white"   if is_dark else "black"
-        grid_color = "#2a2a2a" if is_dark else "#cccccc"
+        is_dark    = self.is_dark
+        _t         = self._get_theme()
+        bg_color   = _t["bg"]
+        bg2_color  = _t["bg2"]
+        text_color = _t["fg"]
+        grid_color = _t["bg3"]
 
         self.fig.clear()
         self._clear_cursors()
         self.fig.patch.set_facecolor(bg_color)
 
         if not sel:
+            self._update_tk_legend([])
             ax = self.fig.add_subplot(111)
-            ax.set_facecolor("#1e1e1e" if is_dark else "#fdfdfd")
+            ax.set_facecolor(bg2_color)
             ax.text(0.5, 0.5, "No Sensors Selected", ha='center', va='center', color='gray')
             self.canvas_widget.draw_idle()
             return
@@ -1235,13 +1406,14 @@ class TelemetryApp:
         import matplotlib.colors as mcolors
         import matplotlib.cm as mcm
 
+        _hm = self._get_theme()
         band_colors = [
-            (0.00, '#1a7a3a'),
-            (0.55, '#2ecc71'),
-            (0.60, '#f1c40f'),
-            (0.80, '#e67e22'),
-            (0.85, '#922b21'),
-            (1.00, '#641e16'),
+            (0.00, _hm.get("hm_safe", "#1a7a3a")),
+            (0.55, _hm.get("hm_ok",   "#2ecc71")),
+            (0.60, _hm.get("hm_warn",  "#f1c40f")),
+            (0.80, _hm.get("hm_hot",   "#e67e22")),
+            (0.85, _hm.get("hm_crit",  "#922b21")),
+            (1.00, _hm.get("hm_max",   "#641e16")),
         ]
         cmap_discrete = mcolors.LinearSegmentedColormap.from_list(
             'threshold_map',
@@ -1378,7 +1550,7 @@ class TelemetryApp:
 
         ax.set_xlabel("Elapsed Time" if use_time else "Record Index",
                       color=text_color, fontsize=8)
-        ax.set_title("Sensor Heatmap  —  Green: safe  |  Yellow: approaching limit  |  Red: at/above limit",
+        ax.set_title("Sensor Heatmap  -  Green: safe  |  Yellow: approaching limit  |  Red: at/above limit",
                      color=text_color, fontsize=8, pad=6)
 
         try:
@@ -1461,10 +1633,22 @@ class TelemetryApp:
         self._apply_theme_colors()
         self.update_plot()
 
+    def _get_theme(self):
+        """Return the active colour dict by name - user themes take priority, then built-ins."""
+        active = self.custom_theme.get("active", "Dark (Default)")
+        user = self.custom_theme.get("user_themes", {})
+        if active in user:
+            return dict(user[active])
+        if active in BUILTIN_PRESETS:
+            return {k: v for k, v in BUILTIN_PRESETS[active].items() if not k.startswith("_")}
+        return dict(_DEFAULT_DARK_THEME)
+
     def _apply_theme_colors(self):
-        bg, fg = ("#121212", "#e0e0e0") if self.is_dark else ("#f8f9fa", "#212529")
-        accent = "#1f6aa5" if self.is_dark else "#3498db"
-        hover_bg = "#252525" if self.is_dark else "#e9ecef"
+        t        = self._get_theme()
+        bg       = t["bg"]
+        fg       = t["fg"]
+        accent   = t["accent"]
+        hover_bg = t["bg3"]
 
         self.style = ttk.Style()
         self.style.theme_use('clam')
@@ -1501,6 +1685,37 @@ class TelemetryApp:
 
         for hdr in self.header_widgets.values():
             hdr.configure(bg=bg, fg=accent if self.is_dark else "#2c3e50")
+
+        if hasattr(self, '_diag_row_frame'):
+            self._diag_row_frame.configure(bg=bg)
+            for lbl in (self._badge_crit_lbl, self._badge_warn_lbl,
+                        self._badge_info_lbl, self._badge_ok_lbl):
+                try: lbl.configure(bg=bg)
+                except Exception: pass
+
+        if hasattr(self, '_legend_panel'):
+            try:
+                bg2 = t["bg2"]
+                bg3 = t["bg3"]
+                self._legend_panel.configure(bg=bg2)
+                if hasattr(self, '_legend_canvas'):
+                    self._legend_canvas.configure(bg=bg2)
+                if hasattr(self, '_legend_inner'):
+                    self._legend_inner.configure(bg=bg2)
+                if hasattr(self, '_legend_title'):
+                    self._legend_title.configure(bg=bg2, fg=accent)
+                if hasattr(self, '_legend_vsb'):
+                    self._legend_vsb.configure(bg=bg3, troughcolor=bg2,
+                                               activebackground=accent)
+            except Exception:
+                pass
+
+        if hasattr(self, 'sc_checklist'):
+            try: self.sc_checklist.configure(bg=bg3, troughcolor=bg, activebackground=accent)
+            except Exception: pass
+        if hasattr(self, 'preset_scroll'):
+            try: self.preset_scroll.configure(bg=bg3, troughcolor=bg, activebackground=accent)
+            except Exception: pass
     def _is_critical(self, col: str) -> bool:
         raw  = col.upper()
         name = raw.replace(' ', '')
@@ -1521,7 +1736,7 @@ class TelemetryApp:
                 return series.min() <= self.fps_min and series.max() > 0
             return False
 
-        if 'LATENCY' in raw or 'RENDER TIME' in raw or 'PRESENT TIME' in raw \
+        if 'LATENCY' in raw or 'RENDER TIME' in raw or 'PRESENT TIME' in raw\
                 or 'GPU BUSY' in raw or 'CPU BUSY' in raw or 'DISPLAY LATENCY' in raw:
             return series.max() > self.latency_max_ms
 
@@ -1688,7 +1903,7 @@ class TelemetryApp:
             return series.max() > self.gpu_volt_max
 
         if 'CPU CLOCK' in raw or 'GPU CLOCK' in raw or 'CORE CLOCK' in raw:
-            if 'EFFECTIVE' not in raw and 'REQUESTED' not in raw \
+            if 'EFFECTIVE' not in raw and 'REQUESTED' not in raw\
                     and 'CORE #' not in raw and 'LIMIT' not in raw:
                 if series.mean() > 100 and (series.std() / series.mean()) > self.clock_instability:
                     return True
@@ -1771,7 +1986,7 @@ class TelemetryApp:
         return None
 
     def _toggle_debug(self):
-        """Ctrl+F8 — open/refresh the debug window."""
+        """Ctrl+F8 - open/refresh the debug window."""
         self.debug_mode = not self.debug_mode
         flag = " [DEBUG]" if self.debug_mode else ""
         self.root.title(f"RESYNC.ERR v{CURRENT_VERSION} - {self.analyzer.path.name}{flag}")
@@ -1785,9 +2000,8 @@ class TelemetryApp:
     def _open_debug_window(self):
         """Open (or refresh) the debug output window."""
         is_dark = self.is_dark
-        bg      = "#0d0d0d" if is_dark else "#f8f9fa"
+        _t = self._get_theme(); bg = _t["bg"]; fg = _t["fg"]; accent = _t["accent"]
         bg2     = "#1a1a1a" if is_dark else "#ffffff"
-        fg      = "#d4d4d4" if is_dark else "#212529"
         accent  = "#1f6aa5"
         fg_ok   = "#4ec94e"
         fg_miss = "#ff5555"
@@ -1801,7 +2015,7 @@ class TelemetryApp:
             txt.delete('1.0', tk.END)
         else:
             win = tk.Toplevel(self.root)
-            win.title("RESYNC.ERR — Debug Dump  [Ctrl+F8 to refresh / close]")
+            win.title("RESYNC.ERR - Debug Dump  [Ctrl+F8 to refresh / close]")
             win.geometry("860x700")
             win.minsize(600, 400)
             win.configure(bg=bg)
@@ -1881,7 +2095,7 @@ class TelemetryApp:
         def avg(c): return df[c].mean() if c and c in df.columns else None
 
         wl('═' * 72, 'header')
-        wl(f"  RESYNC.ERR v{CURRENT_VERSION}  —  Debug Dump", 'header')
+        wl(f"  RESYNC.ERR v{CURRENT_VERSION}  -  Debug Dump", 'header')
         wl(f"  CSV     : {self.analyzer.path}", 'header')
         wl(f"  Rows    : {len(df):,}   Columns: {len(df.columns):,}", 'header')
         wl(f"  Disabled: {sorted(self.disabled_sigs) or 'none'}", 'header')
@@ -2016,7 +2230,7 @@ class TelemetryApp:
 
         def _safe_alias(key, *fallbacks):
             """Return alias or fallback column only if it exists in df.
-            Supports list of aliases — tries each in order."""
+            Supports list of aliases - tries each in order."""
             entry = self.analyzer.aliases.get(key)
             if entry:
                 candidates = entry if isinstance(entry, list) else [entry]
@@ -2136,7 +2350,7 @@ class TelemetryApp:
         score_tag = 'crit' if _psu_score >= 4 else ('warn' if _psu_score >= 2 else 'ok')
         wl(f"{_psu_score}/10  ({'CRITICAL' if _psu_score >= 4 else 'WARNING' if _psu_score >= 2 else 'CLEAR'})", score_tag)
         if not any([v12c, v5c, v33c]):
-            wl("  No voltage rail columns found — PSU analysis unavailable.", 'muted')
+            wl("  No voltage rail columns found - PSU analysis unavailable.", 'muted')
 
         chipset_t      = self._col('Chipset [°C]') or self._col('Motherboard [°C]')
         pcie_errors    = self._col('PCI Express Error Counters (avg)')
@@ -2258,7 +2472,7 @@ class TelemetryApp:
                 w(f"  {c[:50]:50s}  ")
                 wl(f"min={df[c].min():.2f}  max={df[c].max():.2f}", 'val')
         else:
-            wl("  No battery/laptop columns found — desktop system assumed.", 'muted')
+            wl("  No battery/laptop columns found - desktop system assumed.", 'muted')
 
         section("OUT-OF-SPEC SENSOR SUMMARY")
         oos = [c for c in df.columns if self._is_critical(c)]
@@ -2321,14 +2535,14 @@ class TelemetryApp:
 
         wl()
         wl('═' * 72, 'header')
-        wl(f"  End of dump — Ctrl+F8 to refresh, ✕ to close", 'header')
+        wl(f"  End of dump - Ctrl+F8 to refresh, ✕ to close", 'header')
         wl('═' * 72, 'header')
 
         txt.config(state='disabled')
         txt.see('1.0')
 
     def _run_debug_dump(self):
-        """Legacy stub — debug output now goes to the in-app window via _open_debug_window()."""
+        """Legacy stub - debug output now goes to the in-app window via _open_debug_window()."""
         self._open_debug_window()
 
     def _start_sig_watcher(self):
@@ -2494,9 +2708,9 @@ class TelemetryApp:
         gpu_eff_clock = self._col('GPU Effective Clock [MHz]')
         fclk_col = _a('fclk') or self._col('FCLK') or None
         uclk_col = _a('uclk') or next((c for c in df.columns if 'UCLK' in c), None)
-        mclk_col = _a('mclk') or self._col_excl(['MCLK'],         excl=['GPU','VRAM','GDDR','VIDEO']) \
-                              or self._col_excl(['MEMORY CLOCK'], excl=['GPU','VRAM','GDDR','VIDEO']) \
-                              or self._col_excl(['DRAM CLOCK'],   excl=['GPU','VRAM','GDDR','VIDEO']) \
+        mclk_col = _a('mclk') or self._col_excl(['MCLK'],         excl=['GPU','VRAM','GDDR','VIDEO'])\
+                              or self._col_excl(['MEMORY CLOCK'], excl=['GPU','VRAM','GDDR','VIDEO'])\
+                              or self._col_excl(['DRAM CLOCK'],   excl=['GPU','VRAM','GDDR','VIDEO'])\
                               or None
 
         def mx(col): return df[col].max() if col and col in df.columns else 0
@@ -2506,7 +2720,7 @@ class TelemetryApp:
             limit = self.temp_limits.get('TDIE', 95.0)
             warn_threshold = limit * 0.85
             crit_threshold = limit * 0.92
-            
+
             is_critical = self._sustained(cpu_temp, crit_threshold,
                                           n_samples=self.sig_cpu_thermal_samples)
             is_warning  = self._sustained(cpu_temp, warn_threshold,
@@ -2523,36 +2737,36 @@ class TelemetryApp:
                      f"Limit: {limit:.0f}°C",
                      f"Throttling Flag: {'Active' if thr_active else 'Inactive'}"],
                     mask=_cpu_mask, cols=[cpu_temp, throttle])
-        
+
         if gpu_hotspot:
             hs_max = mx(gpu_hotspot)
             hs_limit = self.temp_limits.get('HOTSPOT', 95.0)
-            
+
             gpu_edge = self._col_excl(('GPU', 'TEMP'), excl=('HOTSPOT', 'MEMORY', 'CPU'))
-            
+
             delta_val = 0
             if gpu_edge:
                 delta_series = self.df[gpu_hotspot] - self.df[gpu_edge]
                 delta_val = delta_series.max()
-            
+
             evidence = [
                 f"Hotspot Max: {hs_max:.1f}°C",
                 f"Thermal Delta: {delta_val:.1f}°C"
             ]
 
             if hs_max >= hs_limit:
-                add("GPU Overheating (Hotspot)", "CRITICAL", 
+                add("GPU Overheating (Hotspot)", "CRITICAL",
                     "The GPU Hotspot is at dangerous levels. ADVICE: Immediately increase GPU fan curves in Afterburner and check for obstructed case airflow.",
                     evidence + [f"Hardware Limit: {hs_limit}°C"], cols=[gpu_hotspot, gpu_edge])
-            
+
             elif hs_max > (hs_limit - 10) or delta_val >= 21.0:
                 if delta_val >= 21.0:
                     msg = "High thermal delta detected. ADVICE: A gap over 21°C suggests poor mounting pressure or 'pump-out' of thermal paste. Consider re-pasting the GPU."
                 else:
                     msg = "GPU Hotspot is approaching dangerous levels. ADVICE: Increase fan speeds or reduce the power limit."
-                
+
                 add("GPU Thermal Warning", "WARNING", msg, evidence, cols=[gpu_hotspot, gpu_edge])
-            
+
         if not is_laptop:
             v12 = self._col('+12V')
             if v12:
@@ -2563,7 +2777,7 @@ class TelemetryApp:
                         "The 12V rail (GPU/CPU power) is sagging below safe limits. This causes system-wide instability or 'black screen' crashes under load. "
                         "ADVICE: Check that PCIe and EPS power cables are fully seated. If the sag persists, the PSU is likely underpowered or failing.",
                         [f"Min Voltage: {v_min:.2f}V", f"Safety Limit: {self.sig_v12_lo}V"])
-        
+
         if gpu_usage_col and gpu_clock:
             low_usage = df[gpu_usage_col] < 5
             clock_stall = (df[gpu_clock].rolling(3).std() < 1.0) & (df[gpu_clock] > 0)
@@ -2580,20 +2794,20 @@ class TelemetryApp:
                 f"Confirmed Events: {int(confirmed_tdr.sum())} samples detected."
                     ],
                     mask=confirmed_tdr, cols=[gpu_usage_col, gpu_clock])
-        
+
         drive_temps = [c for c in df.columns if 'TEMP' in c.upper() and any(k in c.upper() for k in ['DRIVE', 'NVME', 'SSD'])]
 
         for d_col in drive_temps:
             peak = mx(d_col)
             u_col = d_col.upper()
-            
+
             if any(k in u_col for k in ['HDD', 'HARD DRIVE', 'ST']):
                 crit_limit = 55.0
                 warn_limit = 45.0
                 drive_type = "HDD (Mechanical)"
             else:
-                crit_limit = self.sig_drive_temp_max  
-                warn_limit = self.sig_drive_temp_max - 10.0 
+                crit_limit = self.sig_drive_temp_max
+                warn_limit = self.sig_drive_temp_max - 10.0
                 drive_type = "SSD/NVMe"
 
             if peak >= crit_limit:
@@ -2601,29 +2815,29 @@ class TelemetryApp:
                         "For HDDs, this can cause mechanical failure and head crashes. "
                         "For SSDs, this triggers emergency shutdowns and disconnects. "
                         "ADVICE: Power off immediately to prevent permanent data loss.")
-                add("Storage Thermal Critical", "CRITICAL", desc, 
+                add("Storage Thermal Critical", "CRITICAL", desc,
                     [f"Peak: {peak:.1f}°C", f"Limit: {crit_limit}°C", f"Type: {drive_type}"])
-            
+
             elif peak > warn_limit:
                 desc = (f"High temperature on {drive_type} '{d_col}'. "
                         "This leads to thermal throttling and reduced lifespan. "
                         "ADVICE: Improve case airflow or move the drive away from heat sources (like the GPU).")
-                add("Storage Overheating", "WARNING", desc, 
+                add("Storage Overheating", "WARNING", desc,
                     [f"Peak: {peak:.1f}°C", f"Warning: {warn_limit}°C", f"Type: {drive_type}"])
-        
+
         whea = self._col('WHEA')
         if whea and mx(whea) > 0:
-            add("Hardware (WHEA) Errors", "CRITICAL", 
+            add("Hardware (WHEA) Errors", "CRITICAL",
                 "Windows detected physical hardware errors. ADVICE: This is often caused by unstable RAM (XMP/EXPO) or CPU undervolts. Revert to BIOS defaults.",
                 [f"Total Errors: {int(mx(whea))}"], cols=[whea])
-        
+
         ppt_limit = self._col('CPU', 'PPT', 'LIMIT')
         if cpu_power and ppt_limit and self._sustained(cpu_power, mx(ppt_limit)*self.sig_ppt_sat_pct,
                                                         self.sig_ppt_sat_samples):
-            add("CPU Power Limit Reached", "WARNING", 
+            add("CPU Power Limit Reached", "WARNING",
                 "CPU performance is being capped by power limits. ADVICE: If temps are safe, you can increase 'PPT' or 'PL1/PL2' limits in BIOS.",
                 [f"Power Sustained at: {avg(cpu_power):.1f}W"], cols=[cpu_power])
-        
+
         for col in df.columns:
             if ('FAN' in col.upper() or 'RPM' in col.upper()) and '[%]' not in col:
                 fan_s = df[col].ffill().fillna(0)
@@ -2635,15 +2849,15 @@ class TelemetryApp:
                     else:
                         if gpu_hotspot: is_hot |= (df[gpu_hotspot] > self.sig_fan_hot_gpu_c)
                         if cpu_temp: is_hot |= (df[cpu_temp] > self.sig_fan_hot_cpu_c)
-                    
+
                     _fan_mask = (is_stalled & is_hot).rolling(window=3).sum() >= 3
                     if _fan_mask.max() >= 1:
-                        add("Fan Stall Detected", "CRITICAL", 
+                        add("Fan Stall Detected", "CRITICAL",
                             f"Fan '{col}' stopped while components were hot. ADVICE: Check for cables blocking the fan blades or a failing motor.",
                             ["RPM hit 0 during load samples."],
                             mask=_fan_mask, cols=[col, cpu_temp, gpu_hotspot])
                         break
-        
+
         df = df.copy()
         if gpu_mem_usage and gpu_mem_dynamic:
 
@@ -2706,10 +2920,10 @@ class TelemetryApp:
                     mask=overflow, cols=[gpu_mem_usage, gpu_mem_dynamic])
 
             df.drop(columns=["_overflow_state", "_time_diff"], inplace=True, errors="ignore")
-        
-        fail_cols = [c for c in df.columns if any(k in c.upper() for k in ['DRIVE', 'SSD', 'NVME']) 
+
+        fail_cols = [c for c in df.columns if any(k in c.upper() for k in ['DRIVE', 'SSD', 'NVME'])
                      and any(k in c.upper() for k in ['FAILURE', 'WARNING'])]
-        
+
         life_cols = [c for c in df.columns if 'REMAINING LIFE' in c.upper() or 'DRIVE HEALTH' in c.upper()]
 
         for f_col in fail_cols:
@@ -2727,7 +2941,7 @@ class TelemetryApp:
 
         for l_col in life_cols:
             current_life = df[l_col].min()
-            
+
             if current_life <= 5.0:
                 add(
                     name="SSD Lifespan Critical",
@@ -2739,7 +2953,7 @@ class TelemetryApp:
                     ),
                     evidence=[f"Remaining Life: {current_life:.1f}%", "Safety Limit: 5.0%"]
                 )
-            
+
             elif current_life <= 20.0:
                 add(
                     name="SSD Wear Warning",
@@ -2751,35 +2965,35 @@ class TelemetryApp:
                     ),
                     evidence=[f"Remaining Life: {current_life:.1f}%", "Warning Threshold: 20.0%"]
                 )
-        
+
         ram_load = self._col('PHYSICAL', 'MEMORY', 'LOAD')
         if ram_load and mx(ram_load) > self.sig_ram_exhaust_pct:
-            add("System RAM Exhaustion", "CRITICAL", 
-                "Physical RAM is nearly full. ADVICE: Close browser tabs, Discord, or other background apps. Consider upgrading to 32GB RAM.", 
+            add("System RAM Exhaustion", "CRITICAL",
+                "Physical RAM is nearly full. ADVICE: Close browser tabs, Discord, or other background apps. Consider upgrading to 32GB RAM.",
                 [f"Max Load: {mx(ram_load):.1f}%", f"Threshold: {self.sig_ram_exhaust_pct}%"],
                 mask=df[ram_load] > self.sig_ram_exhaust_pct, cols=[ram_load])
-        
+
         v_load = self._col('VIRTUAL', 'MEMORY', 'LOAD') or self._col('PAGE', 'FILE', 'USAGE')
         if v_load and mx(v_load) > 98:
-            add("Virtual Memory Limit", "CRITICAL", 
-                "The system 'Commit Limit' is full. ADVICE: Ensure your Windows Page File is set to 'System Managed' and your C: drive is not full.", 
+            add("Virtual Memory Limit", "CRITICAL",
+                "The system 'Commit Limit' is full. ADVICE: Ensure your Windows Page File is set to 'System Managed' and your C: drive is not full.",
                 [f"Commit Charge: {mx(v_load):.1f}%"])
-        
+
         if gpu_usage_col and cpu_usage_col:
             bn = (df[gpu_usage_col] < self.sig_cpu_bn_gpu_pct) & (df[cpu_usage_col] > self.sig_cpu_bn_cpu_pct)
             if bn.rolling(window=self.sig_cpu_bn_samples).sum().max() >= self.sig_cpu_bn_samples:
-                add("CPU Bottleneck", "INFO", 
-                    "CPU is maxed out while GPU is idling. ADVICE: Increase resolution/graphics settings to shift load to GPU, or close background apps.", 
+                add("CPU Bottleneck", "INFO",
+                    "CPU is maxed out while GPU is idling. ADVICE: Increase resolution/graphics settings to shift load to GPU, or close background apps.",
                     [f"Avg GPU Usage during spike: {df.loc[bn, gpu_usage_col].mean():.1f}%",
                      f"Thresholds: GPU < {self.sig_cpu_bn_gpu_pct}%, CPU > {self.sig_cpu_bn_cpu_pct}%"],
                     mask=bn, cols=[cpu_usage_col, gpu_usage_col])
-        
+
         vrm_temp = self._col('VRM') or self._col('MOS')
         if vrm_temp and mx(vrm_temp) > self.sig_vrm_temp_max:
-            add("VRM Overheating", "CRITICAL", 
-                "Motherboard power delivery is too hot. ADVICE: Improve case airflow or add a small fan directed at the motherboard heatsinks.", 
+            add("VRM Overheating", "CRITICAL",
+                "Motherboard power delivery is too hot. ADVICE: Improve case airflow or add a small fan directed at the motherboard heatsinks.",
                 [f"Max: {mx(vrm_temp):.1f}°C", f"Threshold: {self.sig_vrm_temp_max}°C"], cols=[vrm_temp])
-        
+
         req_cols = [c for c in df.columns if 'Clock (perf #' in c]
         if req_cols:
             n_cores        = len(req_cols)
@@ -2886,15 +3100,15 @@ class TelemetryApp:
                         peak_temp = df[cpu_temp_col][major_event].max()
                         t_limit   = self.temp_limits.get('TDIE', self.temp_limits.get('CORE', 95.0))
                         if peak_temp >= t_limit * 0.92:
-                            cause_hints.append(f"CPU temp {peak_temp:.1f}°C near limit — likely thermal throttle")
+                            cause_hints.append(f"CPU temp {peak_temp:.1f}°C near limit - likely thermal throttle")
                     ppt_col = self._col('CPU', 'PPT') or self._col('CPU', 'POWER')
                     ppt_lim_col = self._col('CPU', 'PPT', 'LIMIT') or self._col('CPU', 'POWER', 'LIMIT')
                     if ppt_col and ppt_lim_col:
                         ppt_ratio = df[ppt_col].mean() / (df[ppt_lim_col].mean() + 1e-9)
                         if ppt_ratio >= 0.95:
-                            cause_hints.append("CPU PPT at limit — power throttling")
+                            cause_hints.append("CPU PPT at limit - power throttling")
                     if not cause_hints:
-                        cause_hints.append("No obvious thermal/power cause found — check for OS scheduler issues or BIOS power limits")
+                        cause_hints.append("No obvious thermal/power cause found - check for OS scheduler issues or BIOS power limits")
 
                     worst_core_strs = [
                         f"Core {c.split()[1] if 'Core' in str(c) else c}: avg ratio {v:.2f}"
@@ -2902,7 +3116,7 @@ class TelemetryApp:
                     ]
 
                     add(
-                        name="CPU Clock Stretching — Major",
+                        name="CPU Clock Stretching - Major",
                         severity="CRITICAL",
                         description=(
                             "The CPU is consistently running well below its requested frequency "
@@ -2925,7 +3139,7 @@ class TelemetryApp:
                     peak_load = system_load[minor_event].max()
 
                     add(
-                        name="CPU Clock Stretching — Minor",
+                        name="CPU Clock Stretching - Minor",
                         severity="WARNING",
                         description=(
                             "The CPU is running moderately below its requested frequency under "
@@ -2945,14 +3159,14 @@ class TelemetryApp:
                                        ('+3.3V', self.sig_v33_lo, self.sig_v33_hi)]:
                 col = self._col(r_name)
                 if col and (df[col].min() < low or df[col].max() > high):
-                    add(f"PSU {r_name} Rail Unstable", "WARNING", 
+                    add(f"PSU {r_name} Rail Unstable", "WARNING",
                         f"Low-voltage rail {r_name} is out of spec. ADVICE: This can cause random USB disconnects or drive errors. Check PSU health.",
                         [f"Detected Range: {df[col].min():.2f}V - {df[col].max():.2f}V",
                          f"Spec: {low}V - {high}V"])
-    
+
             _psu_evidence = []
             _psu_severity_score = 0
-    
+
             def _best_rail_col(keywords, excl, target_v, tol=0.5):
                 """Return the voltage column closest in mean value to target_v."""
                 import pandas as _pd
@@ -3030,7 +3244,7 @@ class TelemetryApp:
             if _psu_yn_triggers:
                 _psu_evidence.extend(_psu_yn_triggers[:4])
                 _psu_severity_score += min(len(_psu_yn_triggers), 2)
-    
+
             rails_sagging = sum([
                 1 for col, lo in [(v12_col, self.sig_v12_lo),
                                    (v5_col, self.sig_v5_lo),
@@ -3038,25 +3252,25 @@ class TelemetryApp:
                 if col and df[col].dropna().min() < lo
             ])
             if rails_sagging >= 2:
-                _psu_evidence.append(f"{rails_sagging} rails simultaneously below spec — strong indicator of PSU output stage degradation")
+                _psu_evidence.append(f"{rails_sagging} rails simultaneously below spec - strong indicator of PSU output stage degradation")
                 _psu_severity_score += 2
-    
+
             for lbl, col in [('+12V', v12_col), ('+5V', v5_col), ('+3.3V', v33_col)]:
                 if col:
                     ripple = df[col].dropna().std()
                     if ripple > 0.15:
                         _psu_evidence.append(f"{lbl} rail ripple/noise: σ={ripple:.3f}V (>0.15V suggests capacitor wear)")
                         _psu_severity_score += 1
-    
+
             if v12_col and gpu_usage_col and gpu_clock:
                 sag_now  = df[v12_col] < self.sig_v12_lo
                 low_gpu  = df[gpu_usage_col] < 5
                 clk_dead = (df[gpu_clock].rolling(3).std() < 1.0) & (df[gpu_clock] > 0)
                 co_occur = (sag_now & low_gpu & clk_dead).sum()
                 if co_occur >= 3:
-                    _psu_evidence.append(f"+12V sag coincides with GPU stall in {co_occur} samples — likely PSU-induced GPU crash")
+                    _psu_evidence.append(f"+12V sag coincides with GPU stall in {co_occur} samples - likely PSU-induced GPU crash")
                     _psu_severity_score += 2
-    
+
             if _psu_severity_score >= 2 and _psu_evidence:
                 add("PSU Hardware Failure Indicators", "CRITICAL",
                     "Multiple independent signals suggest PSU output degradation or failure. "
@@ -3065,29 +3279,29 @@ class TelemetryApp:
                     "ADVICE: Test with a known-good PSU, check all power cable connections, "
                     "and consider replacement if symptoms persist.",
                     _psu_evidence)
-    
+
         ft_col = self._col('FRAME TIME') or self._col('FRAMETIME')
         if ft_col:
             ft_series = df[ft_col].ffill().dropna()
             stutter_limit = ft_series.median() * self.sig_stutter_mult
             stutters = ft_series[ft_series > stutter_limit]
             if len(stutters) > self.sig_stutter_min_hits:
-                add("Micro-Stuttering Detected", "WARNING", 
-                    "Frequent frametime spikes detected. ADVICE: Cap your framerate to a stable number or enable G-Sync/FreeSync.", 
+                add("Micro-Stuttering Detected", "WARNING",
+                    "Frequent frametime spikes detected. ADVICE: Cap your framerate to a stable number or enable G-Sync/FreeSync.",
                     [f"Worst Spike: {stutters.max():.1f}ms",
                      f"Events above {self.sig_stutter_mult}× median: {len(stutters)}"])
-        
+
         disk_busy = self._col('TOTAL', 'ACTIVE', 'TIME') or self._col('DISK', 'BUSY')
         if disk_busy and (df[disk_busy] >= self.sig_disk_busy_pct).rolling(
                 window=self.sig_disk_busy_samples).sum().max() >= self.sig_disk_busy_samples:
-            add("Storage Congestion", "INFO", 
-                "System drive was 100% busy. ADVICE: Check for background Windows Updates or Antivirus scans that may be fighting the game for disk access.", 
+            add("Storage Congestion", "INFO",
+                "System drive was 100% busy. ADVICE: Check for background Windows Updates or Antivirus scans that may be fighting the game for disk access.",
                 ["Persistent 100% disk usage detected.",
                  f"Threshold: {self.sig_disk_busy_pct}% for {self.sig_disk_busy_samples} samples"])
 
         if cpu_clock and cpu_usage_col:
             is_stuck = (df[cpu_clock] < 1000) & (df[cpu_usage_col] > 70)
-            
+
             if is_stuck.rolling(window=5).sum().max() >= 5:
                 add(
                     name="Phantom Clock Cap",
@@ -3106,7 +3320,7 @@ class TelemetryApp:
             hit_pct = (pwr_limit_active.sum() / len(df)) * 100
             peak_watts = mx(gpu_power)
             avg_watts = avg(gpu_power)
-            
+
             is_stalled = (avg_watts < 25.0) and (hit_pct > 30.0)
 
             if is_laptop and is_stalled:
@@ -3121,12 +3335,12 @@ class TelemetryApp:
                         "'Hard Reset' (Hold Power for 60s) to reset the EC controller."
                     ),
                     evidence=[
-                        f"Avg Power: {avg_watts:.1f}W", 
+                        f"Avg Power: {avg_watts:.1f}W",
                         f"Peak Power: {peak_watts:.1f}W",
                         f"PerfCap PWR Duration: {hit_pct:.1f}%"
                     ]
                 )
-                
+
             elif hit_pct > 25.0:
                 desc = f"The GPU reached its power limit (Peak: {peak_watts:.1f}W)."
                 if is_laptop:
@@ -3143,13 +3357,13 @@ class TelemetryApp:
 
         pcie_width = self._col('GPU', 'PCIE', 'WIDTH')
         pcie_gen   = self._col('GPU', 'PCIE', 'GENERATION') or self._col('GPU', 'BUS', 'GEN')
-        
+
         if pcie_width and pcie_gen:
             max_width = mx(pcie_width)
             max_gen   = mx(pcie_gen)
-            
+
             is_choked = (max_width <= 4.0) and (df[gpu_usage_col] > 50).any()
-            
+
             if is_choked:
                 add(
                     name="PCIe Bus Interface Chokepoint",
@@ -3169,7 +3383,7 @@ class TelemetryApp:
 
         if cpu_usage_col and gpu_usage_col:
             os_jitter = (df[cpu_usage_col] > 70) & (df[gpu_usage_col] < 40)
-            
+
             if os_jitter.rolling(window=self.sig_cpu_bn_samples).sum().max() >= self.sig_cpu_bn_samples:
                 add(
                     name="Background Process Interference",
@@ -3185,23 +3399,23 @@ class TelemetryApp:
                         f"Avg GPU during spike: {df.loc[os_jitter, gpu_usage_col].mean():.1f}%"
                     ]
                 )
-       
-        df = df.copy() 
+
+        df = df.copy()
 
         if ft_col and gpu_usage_col:
-            
+
             rolling_avg_ft = df[ft_col].rolling(window=10, center=True).mean()
             df = df.assign(jitter_calc = df[ft_col] / rolling_avg_ft)
-            
+
             is_stuttering = df['jitter_calc'] > 1.5
             stutter_count = is_stuttering.sum()
-            
+
             if stutter_count > 3:
                 stutter_indices = df[is_stuttering].index
                 avg_gpu_load = df.loc[stutter_indices, gpu_usage_col].mean()
-                
+
                 bus_activity = df.loc[stutter_indices, gpu_bus_col].max() if gpu_bus_col else 0
-                
+
                 if (avg_gpu_load < 92) or (bus_activity > 5.0):
                     usage_gap = 100 - avg_gpu_load
                     add(
@@ -3258,13 +3472,13 @@ class TelemetryApp:
                     ]
                 )
         if gpu_12v_input_v and gpu_12v_input_w:
-            
+
             high_load_mask = df[gpu_12v_input_w] > 300
-            
+
             if high_load_mask.any():
                 min_v = df.loc[high_load_mask, gpu_12v_input_v].min()
                 max_w = df[gpu_12v_input_w].max()
-                
+
                 if min_v < 11.7:
                     add(
                         name="GPU Power Connector Safety Risk (Melting/Fire)",
@@ -3310,13 +3524,13 @@ class TelemetryApp:
 
         if gpu_wait_ms and ft_col:
             df = df.assign(wait_ratio = df[gpu_wait_ms] / df[ft_col])
-            
+
             is_waiting = df['wait_ratio'] > 0.25
-            
+
             if is_waiting.any():
                 max_wait = df[gpu_wait_ms].max()
                 avg_ratio = df.loc[is_waiting, 'wait_ratio'].mean() * 100
-                
+
                 add(
                     name="GPU Engine Wait Bottleneck",
                     severity="WARNING" if avg_ratio < 40 else "CRITICAL",
@@ -3408,7 +3622,9 @@ class TelemetryApp:
 
         if mclk_col:
             m_med = df[mclk_col].median()
+
             is_ddr5_mem = m_med > 2400
+
             xmp_threshold = 3000 if is_ddr5_mem else 1600
             stock_ceiling = 2400 if is_ddr5_mem else 1333
             if m_med <= stock_ceiling:
@@ -3435,9 +3651,9 @@ class TelemetryApp:
 
         if gpu_pwr_limit and gpu_clk_col:
             limit_active = df[gpu_pwr_limit].apply(lambda x: 1 if x == 'Yes' else 0)
-            
+
             toggles = limit_active.diff().abs().sum()
-            
+
             if toggles > 5:
                 clk_variance = df[gpu_clk_col].std()
                 add(
@@ -3454,9 +3670,9 @@ class TelemetryApp:
                     ]
                 )
         if cpu_utility:
-            
+
             usage_std = df[cpu_utility].std()
-            
+
             if usage_std > 15:
                 add(
                     name="Kernel Driver Latency (DPC/ISR)",
@@ -3476,13 +3692,13 @@ class TelemetryApp:
 
         if drive_activity:
             is_pinned = (df[drive_activity] > 98).sum() > 3
-            
+
             if is_pinned or (drive_warning and (df[drive_warning] == 'Yes').any()):
                 add(
                     name="Storage I/O Bottleneck / Hitching",
                     severity="CRITICAL" if (drive_warning and (df[drive_warning] == 'Yes').any()) else "WARNING",
                     description="The system drive is maxed out or reporting hardware warnings, causing asset-loading hitches.",
-                    evidence=["Drive at 100% activity" if is_pinned else "Hardware Warning Flag Detected", 
+                    evidence=["Drive at 100% activity" if is_pinned else "Hardware Warning Flag Detected",
                               "ADVICE: Check SSD health or move game to a faster drive."],
                 )
 
@@ -3495,7 +3711,7 @@ class TelemetryApp:
                     evidence=[f"Max Chipset Temp: {df[chipset_t].max():.1f}°C"],
                     advice="Ensure GPU isn't blocking chipset airflow."
                 )
-                
+
             if usb_v_col:
                 min_usb_v = df[usb_v_col].min()
                 if min_usb_v < 4.75:
@@ -3506,9 +3722,8 @@ class TelemetryApp:
                         evidence=[f"Min USB Voltage: {min_usb_v:.2f}V"],
                         advice="Unplug non-essential USB devices or use a powered USB hub."
                     )
-        
-        return hits
 
+        return hits
 
     def _build_narrative(self, results: list) -> str:
         """Build a hedged plain-English summary paragraph from signature results."""
@@ -3532,8 +3747,9 @@ class TelemetryApp:
             total_x = xv[-1] - xv[0]
             if total_x <= 0:
                 return 0.0
+            max_idx = len(xv) - 1
             covered = sum(
-                max(0, xv[min(e, len(xv)-1)] - xv[max(s, 0)])
+                max(0, xv[min(e, max_idx)] - xv[max(s, max_idx)])
                 for s, e in spans
             )
             return min(covered / total_x, 1.0)
@@ -3567,7 +3783,7 @@ class TelemetryApp:
             ('VRAM Swapping / System Memory Spillover', 'Micro-Stuttering Detected',
              'VRAM spillover into system memory coincided with stuttering, which is a common relationship'),
             ('PSU Hardware Failure Indicators', 'GPU Driver TDR (Timeout)',
-             'PSU stress indicators and GPU timeouts were both present in this session — these can sometimes be related'),
+             'PSU stress indicators and GPU timeouts were both present in this session - these can sometimes be related'),
             ('System RAM Exhaustion',     'Virtual Memory Limit',
              'Both physical RAM exhaustion and virtual memory pressure were detected, suggesting the system may have been significantly memory-constrained'),
             ('Fan Stall Detected',        'CPU Thermal Throttling',
@@ -3626,13 +3842,364 @@ class TelemetryApp:
         )
         return ' '.join(parts)
 
+    def _open_theme_editor(self):
+        """Colour theme editor - named themes, user themes, import/export/delete."""
+        import tkinter.colorchooser as cc
+
+        def _lum(h):
+            try: r,g,b_=int(h[1:3],16),int(h[3:5],16),int(h[5:7],16); return 0.2126*r+0.7152*g+0.0722*b_
+            except: return 128
+
+        t        = self._get_theme()
+        bg       = t["bg"]
+        bg3      = t["bg3"]
+        fg       = t["fg"]
+        accent   = t["accent"]
+        muted_fg  = "#666666" if _lum(bg) > 128 else "#aaaaaa"
+        accent_fg = "#000000" if _lum(accent) > 140 else "#ffffff"
+
+        user_themes = dict(self.custom_theme.get("user_themes", {}))
+        active_name  = self.custom_theme.get("active", "Dark (Default)")
+        overrides    = dict(t)
+
+        FIELDS = [
+            ("bg",      "Background"),
+            ("bg2",     "Surface (cards / inputs)"),
+            ("bg3",     "Hover / border"),
+            ("fg",      "Text"),
+            ("accent",  "Accent (buttons / headers)"),
+            ("accent2", "Accent secondary"),
+        ]
+        PLOT_FIELDS = [("plot_c0","Line 1"),("plot_c1","Line 2"),("plot_c2","Line 3"),
+                       ("plot_c3","Line 4"),("plot_c4","Line 5"),("plot_c5","Line 6")]
+        HM_FIELDS   = [("hm_safe","Safe"),("hm_ok","Normal"),("hm_warn","Warning"),
+                       ("hm_hot","At Limit"),("hm_crit","Critical"),("hm_max","Max")]
+
+        swatches = {}
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Theme Editor")
+        dialog.geometry("560x820")
+        dialog.minsize(460, 640)
+        dialog.grab_set()
+        dialog.configure(bg=bg)
+        x = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 280
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 410
+        dialog.geometry(f"560x820+{x}+{y}")
+
+        def _refresh_swatches():
+            for key, (sf, hv) in swatches.items():
+                col = overrides.get(key, "#888")
+                hv.set(col)
+                sf.configure(bg=col)
+
+        def _pick(key):
+            current = overrides.get(key, "#ffffff")
+            result = cc.askcolor(color=current, parent=dialog, title=f"Pick colour - {key}")
+            if result and result[1]:
+                overrides[key] = result[1]
+                _refresh_swatches()
+
+        selected_name = [active_name]
+
+        def _load_preset(name):
+            nonlocal overrides
+            src = BUILTIN_PRESETS.get(name) or user_themes.get(name, {})
+            overrides = {k: v for k, v in src.items() if not k.startswith("_")}
+            selected_name[0] = name
+            _refresh_swatches()
+
+            for bname, (btn, _) in all_theme_btns.items():
+                is_sel = (bname == name)
+                btn.configure(text=("✓ " if is_sel else "") + bname,
+                              font=('Segoe UI', 8, 'bold' if is_sel else 'normal'))
+
+        def _delete_theme(name):
+            if name in BUILTIN_PRESETS:
+                messagebox.showwarning("Cannot Delete", f"\"{name}\" is a built-in theme and cannot be deleted.", parent=dialog)
+                return
+            if not messagebox.askyesno("Delete Theme", f"Delete \"{name}\"?", parent=dialog):
+                return
+            user_themes.pop(name, None)
+            new_active = active_name if active_name != name else "Dark (Default)"
+            _commit(new_active, rebuild=True)
+
+        def _commit(new_active, rebuild=False):
+            full = dict(self.custom_theme)
+            full["user_themes"] = dict(user_themes)
+            full["active"]      = new_active
+            self.custom_theme   = full
+            save_theme(full)
+            self._save_config()
+
+            src = BUILTIN_PRESETS.get(new_active) or user_themes.get(new_active, {})
+            self.is_dark = src.get("_dark", True)
+            self._apply_theme_colors()
+            self.update_plot()
+            if rebuild:
+                dialog.destroy()
+                self._open_theme_editor()
+
+        def _name_dialog(title, initial, on_confirm):
+            win = tk.Toplevel(dialog)
+            win.title(title)
+            win.geometry("340x130")
+            win.grab_set()
+            win.configure(bg=bg)
+            win.resizable(False, False)
+            win.geometry(f"340x130+{dialog.winfo_x()+110}+{dialog.winfo_y()+180}")
+            tk.Label(win, text="Theme name:", bg=bg, fg=fg,
+                     font=('Segoe UI', 9)).pack(anchor='w', padx=16, pady=(14, 4))
+            name_var = tk.StringVar(value=initial)
+            entry = tk.Entry(win, textvariable=name_var, font=('Segoe UI', 10),
+                             bg=bg3, fg=fg, insertbackground=fg, relief='flat')
+            entry.pack(fill=tk.X, padx=16)
+            entry.select_range(0, tk.END)
+            entry.focus_set()
+            def _ok():
+                name = name_var.get().strip()
+                if not name: return
+                if name in BUILTIN_PRESETS:
+                    messagebox.showwarning("Reserved Name",
+                        f'"{name}" is a built-in theme. Choose a different name.',
+                        parent=win)
+                    return
+                win.destroy()
+                on_confirm(name)
+            btn_r = tk.Frame(win, bg=bg)
+            btn_r.pack(fill=tk.X, padx=16, pady=10)
+            tk.Button(btn_r, text="Cancel", bg=bg3, fg=fg, relief='flat',
+                      padx=8, command=win.destroy).pack(side=tk.RIGHT, padx=(6, 0))
+            tk.Button(btn_r, text="OK", bg=accent, fg=accent_fg, relief='flat',
+                      font=('Segoe UI', 9, 'bold'), padx=12, command=_ok).pack(side=tk.RIGHT)
+            win.bind("<Return>", lambda e: _ok())
+
+        def _do_save(name):
+            user_themes[name] = dict(overrides)
+            try:
+                r,g,b_ = int(overrides["bg"][1:3],16),int(overrides["bg"][3:5],16),int(overrides["bg"][5:7],16)
+                user_themes[name]["_dark"] = (0.2126*r+0.7152*g+0.0722*b_) < 128
+            except Exception:
+                user_themes[name]["_dark"] = True
+            _commit(name, rebuild=True)
+            self.show_toast(f'Theme "{name}" saved')
+
+        def _save():
+            initial = active_name if active_name not in BUILTIN_PRESETS else "My Theme"
+            _name_dialog("Save Theme As", initial, _do_save)
+
+        def _apply():
+            name = selected_name[0]
+            src = BUILTIN_PRESETS.get(name) or user_themes.get(name, {})
+            full = dict(self.custom_theme)
+            full["active"] = name
+
+            self.custom_theme = full
+            save_theme(full)
+            self.is_dark = src.get("_dark", True)
+            self._apply_theme_colors()
+            self.update_plot()
+            self.show_toast(f'Theme "{name}" applied')
+
+        def _rename_theme(old_name):
+            if old_name in BUILTIN_PRESETS:
+                messagebox.showwarning("Cannot Rename",
+                    f'"{old_name}" is a built-in theme.', parent=dialog)
+                return
+            def _do_rename(new_name):
+                if new_name == old_name: return
+                if new_name in user_themes:
+                    messagebox.showwarning("Name Taken", f'"{new_name}" already exists.', parent=dialog)
+                    return
+                user_themes[new_name] = user_themes.pop(old_name)
+                new_active = new_name if active_name == old_name else active_name
+                _commit(new_active, rebuild=True)
+                self.show_toast(f'Renamed to "{new_name}"')
+            _name_dialog("Rename Theme", old_name, _do_rename)
+
+        def _export_theme():
+            path = filedialog.asksaveasfilename(
+                parent=dialog, title="Export Theme",
+                defaultextension=".json",
+                filetypes=[("Theme JSON", "*.json"), ("All files", "*.*")],
+                initialfile=f"{active_name.replace(' ', '_')}.json"
+            )
+            if not path:
+                return
+            try:
+                export_data = {"hd2_theme": {"name": active_name, "colors": dict(overrides)}}
+                with open(path, 'w') as f:
+                    json.dump(export_data, f, indent=4)
+                self.show_toast("Theme exported")
+            except Exception as e:
+                messagebox.showerror("Export Failed", str(e), parent=dialog)
+
+        def _import_theme():
+            path = filedialog.askopenfilename(
+                parent=dialog, title="Import Theme",
+                filetypes=[("Theme JSON", "*.json"), ("All files", "*.*")]
+            )
+            if not path:
+                return
+            try:
+                with open(path, 'r') as f:
+                    data = json.load(f)
+
+                if "hd2_theme" in data:
+                    payload = data["hd2_theme"]
+                    imp_name   = payload.get("name", Path(path).stem)
+                    imp_colors = payload.get("colors", payload)
+                else:
+                    imp_name   = Path(path).stem
+                    imp_colors = data
+                if not isinstance(imp_colors, dict):
+                    raise ValueError("Invalid theme file")
+                overrides.clear()
+                overrides.update(imp_colors)
+                _refresh_swatches()
+
+                if imp_name in BUILTIN_PRESETS or imp_name in user_themes:
+                    self.show_toast(f'Name "{imp_name}" taken - enter a new name')
+                    def _do_import(name):
+                        user_themes[name] = dict(imp_colors)
+                        _commit(name, rebuild=True)
+                        self.show_toast(f'Imported as "{name}"')
+                    _name_dialog("Import - Name Clash", imp_name + " (imported)", _do_import)
+                else:
+                    user_themes[imp_name] = dict(imp_colors)
+                    self.show_toast(f'Imported "{imp_name}" - click Apply to use it')
+            except Exception as e:
+                messagebox.showerror("Import Failed", str(e), parent=dialog)
+
+        def _reset():
+            nonlocal overrides
+            overrides = dict(self._get_theme())
+            _refresh_swatches()
+
+        header = tk.Frame(dialog, bg=accent, height=4)
+        header.pack(fill=tk.X)
+
+        body = tk.Frame(dialog, bg=bg, padx=18, pady=14)
+        body.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(body, text="Theme Editor", font=('Segoe UI', 12, 'bold'),
+                 bg=bg, fg=fg).pack(anchor='w', pady=(0, 10))
+
+        tk.Label(body, text="Built-in Themes", font=('Segoe UI', 9, 'bold'),
+                 bg=bg, fg=accent).pack(anchor='w', pady=(0, 4))
+        preset_frame = tk.Frame(body, bg=bg)
+        preset_frame.pack(fill=tk.X, pady=(0, 10))
+        all_theme_btns = {}
+
+        for col_i, (pname, pdata) in enumerate(BUILTIN_PRESETS.items()):
+            btn_accent = pdata.get("accent", accent)
+            try:
+                r,g,b_=int(btn_accent[1:3],16),int(btn_accent[3:5],16),int(btn_accent[5:7],16)
+                btn_fg = "#000000" if (0.2126*r+0.7152*g+0.0722*b_) > 140 else "#ffffff"
+            except: btn_fg = "#ffffff"
+            is_active = (pname == active_name)
+            btn = tk.Button(preset_frame, text=("✓ " if is_active else "") + pname,
+                            font=('Segoe UI', 8, 'bold' if is_active else 'normal'),
+                            relief='flat', bg=btn_accent, fg=btn_fg,
+                            padx=6, pady=4,
+                            command=lambda n=pname: _load_preset(n))
+            btn.grid(row=col_i // 5, column=col_i % 5, padx=3, pady=2, sticky='ew')
+            all_theme_btns[pname] = (btn, pname)
+        for c in range(5):
+            preset_frame.columnconfigure(c, weight=1)
+
+        if user_themes:
+            tk.Label(body, text="My Themes", font=('Segoe UI', 9, 'bold'),
+                     bg=bg, fg=accent).pack(anchor='w', pady=(4, 4))
+            user_frame = tk.Frame(body, bg=bg)
+            user_frame.pack(fill=tk.X, pady=(0, 10))
+            for utheme_name, udata in user_themes.items():
+                row = tk.Frame(user_frame, bg=bg)
+                row.pack(fill=tk.X, pady=1)
+                u_accent = udata.get("accent", accent)
+                try:
+                    r,g,b_=int(u_accent[1:3],16),int(u_accent[3:5],16),int(u_accent[5:7],16)
+                    u_fg = "#000000" if (0.2126*r+0.7152*g+0.0722*b_) > 140 else "#ffffff"
+                except: u_fg = "#ffffff"
+                is_active = (utheme_name == active_name)
+                ubtn = tk.Button(row, text=("✓ " if is_active else "") + utheme_name,
+                          font=('Segoe UI', 8, 'bold' if is_active else 'normal'),
+                          relief='flat', bg=u_accent, fg=u_fg, padx=8, pady=3,
+                          command=lambda n=utheme_name: _load_preset(n))
+                ubtn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0,4))
+                all_theme_btns[utheme_name] = (ubtn, utheme_name)
+                tk.Button(row, text="✕", font=('Segoe UI', 8), relief='flat',
+                          bg="#c0392b", fg="#fff", padx=6, pady=3,
+                          command=lambda n=utheme_name: _delete_theme(n)).pack(side=tk.RIGHT)
+                tk.Button(row, text="✎", font=('Segoe UI', 8), relief='flat',
+                          bg=bg3, fg=fg, padx=6, pady=3,
+                          command=lambda n=utheme_name: _rename_theme(n)).pack(side=tk.RIGHT, padx=(0, 4))
+
+        tk.Label(body, text="Customise", font=('Segoe UI', 9, 'bold'),
+                 bg=bg, fg=accent).pack(anchor='w', pady=(6, 4))
+        for key, label in FIELDS:
+            row_f = tk.Frame(body, bg=bg)
+            row_f.pack(fill=tk.X, pady=3)
+            current_col = overrides.get(key, "#888888")
+            hex_var = tk.StringVar(value=current_col)
+            sf = tk.Frame(row_f, bg=current_col, width=28, height=22, relief='flat', bd=1)
+            sf.pack(side=tk.LEFT, padx=(0, 8))
+            sf.pack_propagate(False)
+            tk.Label(row_f, text=label, bg=bg, fg=fg,
+                     font=('Segoe UI', 9), width=24, anchor='w').pack(side=tk.LEFT)
+            tk.Label(row_f, textvariable=hex_var, bg=bg, fg=muted_fg,
+                     font=('Consolas', 8)).pack(side=tk.LEFT, padx=6)
+            tk.Button(row_f, text="Pick", font=('Segoe UI', 8), relief='flat',
+                      bg=accent, fg=accent_fg, padx=8,
+                      command=lambda k=key: _pick(k)).pack(side=tk.RIGHT)
+            swatches[key] = (sf, hex_var)
+
+        def _make_color_section(title, fields):
+            tk.Label(body, text=title, font=('Segoe UI', 9, 'bold'),
+                     bg=bg, fg=accent).pack(anchor='w', pady=(10, 4))
+            row_outer = tk.Frame(body, bg=bg)
+            row_outer.pack(fill=tk.X)
+            for col_i, (key, label) in enumerate(fields):
+                cell = tk.Frame(row_outer, bg=bg)
+                cell.grid(row=0, column=col_i, padx=4, pady=2, sticky='ew')
+                row_outer.columnconfigure(col_i, weight=1)
+                current_col = overrides.get(key, "#888888")
+                hex_var = tk.StringVar(value=current_col)
+                sf = tk.Frame(cell, bg=current_col, width=28, height=20, relief='flat', bd=1)
+                sf.pack()
+                sf.pack_propagate(False)
+                tk.Label(cell, text=label, bg=bg, fg=fg,
+                         font=('Segoe UI', 7), anchor='center').pack()
+                tk.Button(cell, text="Pick", font=('Segoe UI', 7), relief='flat',
+                          bg=accent, fg=accent_fg,
+                          command=lambda k=key: _pick(k)).pack(fill=tk.X)
+                swatches[key] = (sf, hex_var)
+
+        _make_color_section("Plot Line Colors", PLOT_FIELDS)
+        _make_color_section("Heatmap Band Colors", HM_FIELDS)
+
+        btn_row = tk.Frame(dialog, bg=bg, padx=18, pady=10)
+        btn_row.pack(fill=tk.X, side=tk.BOTTOM)
+        tk.Button(btn_row, text="Reset",   font=('Segoe UI', 9), relief='flat',
+                  bg=bg3, fg=fg, padx=10, command=_reset).pack(side=tk.LEFT, padx=(0,4))
+        tk.Button(btn_row, text="Export",  font=('Segoe UI', 9), relief='flat',
+                  bg=bg3, fg=fg, padx=10, command=_export_theme).pack(side=tk.LEFT, padx=(0,4))
+        tk.Button(btn_row, text="Import",  font=('Segoe UI', 9), relief='flat',
+                  bg=bg3, fg=fg, padx=10, command=_import_theme).pack(side=tk.LEFT)
+        tk.Button(btn_row, text="Cancel", font=('Segoe UI', 9), relief='flat',
+                  bg=bg3, fg=fg, padx=10,
+                  command=dialog.destroy).pack(side=tk.RIGHT, padx=(6, 0))
+        tk.Button(btn_row, text="Save As...", font=('Segoe UI', 9, 'bold'), relief='flat',
+                  bg=accent, fg=accent_fg, padx=12,
+                  command=_save).pack(side=tk.RIGHT, padx=(4, 0))
+        tk.Button(btn_row, text="Apply", font=('Segoe UI', 9), relief='flat',
+                  bg=bg3, fg=fg, padx=10,
+                  command=_apply).pack(side=tk.RIGHT, padx=(4, 0))
     def _open_alias_manager(self):
-        """Open the sensor alias manager — view, delete individual aliases, or clear all."""
+        """Open the sensor alias manager - view, delete individual aliases, or clear all."""
         is_dark = self.is_dark
-        bg   = "#121212" if is_dark else "#f8f9fa"
-        bg2  = "#1e1e1e" if is_dark else "#ffffff"
+        _t = self._get_theme(); bg = _t["bg"]; bg2 = _t["bg2"]; fg = _t["fg"]; accent = _t["accent"]
         bg3  = "#2a2a2a" if is_dark else "#e9ecef"
-        fg   = "#e0e0e0" if is_dark else "#212529"
         acc  = "#1f6aa5"
         muted = "#666" if is_dark else "#999"
 
@@ -3646,8 +4213,8 @@ class TelemetryApp:
             "cpu_usage":   "Total CPU Usage",
             "frame_time":  "Frame Time (PresentMon)",
             "rail_33v":    "+3.3V Rail Voltage",
-            "fclk":        "Fabric Clock (FCLK) — AMD Ryzen",
-            "uclk":        "Unified Memory Clock (UCLK) — AMD Ryzen",
+            "fclk":        "Fabric Clock (FCLK) - AMD Ryzen",
+            "uclk":        "Unified Memory Clock (UCLK) - AMD Ryzen",
             "mclk":        "Memory Clock (MCLK)",
             "gpu_busy":    "GPU Busy Time (PresentMon)",
             "gpu_wait":    "GPU Wait Time (PresentMon)",
@@ -3669,13 +4236,13 @@ class TelemetryApp:
         y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 250
         dialog.geometry(f"620x500+{x}+{y}")
 
-        outer = tk.Frame(dialog, bg=acc, padx=2, pady=2)
+        outer = tk.Frame(dialog, bg=accent, padx=2, pady=2)
         outer.pack(fill=tk.BOTH, expand=True)
         inner = tk.Frame(outer, bg=bg, padx=14, pady=12)
         inner.pack(fill=tk.BOTH, expand=True)
 
         tk.Label(inner, text="⚙  Sensor Alias Manager",
-                 font=('Segoe UI', 12, 'bold'), bg=bg, fg=acc).pack(anchor='w')
+                 font=('Segoe UI', 12, 'bold'), bg=bg, fg=accent).pack(anchor='w')
         tk.Label(inner,
                  text="Click ✕ next to any alias to remove it. Changes apply immediately.",
                  font=('Segoe UI', 9), bg=bg, fg=muted).pack(anchor='w', pady=(2, 10))
@@ -3683,7 +4250,8 @@ class TelemetryApp:
         list_outer = tk.Frame(inner, bg=bg2, bd=1, relief='flat')
         list_outer.pack(fill=tk.BOTH, expand=True)
         canvas = tk.Canvas(list_outer, bg=bg2, highlightthickness=0)
-        sb = ttk.Scrollbar(list_outer, orient='vertical', command=canvas.yview)
+        sb = tk.Scrollbar(list_outer, orient='vertical', command=canvas.yview,
+                       bg=bg3, troughcolor=bg, activebackground=accent)
         body = tk.Frame(canvas, bg=bg2)
         win_id = canvas.create_window((0, 0), window=body, anchor='nw')
         body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
@@ -3857,13 +4425,13 @@ class TelemetryApp:
                            ['3.3', '3V3', 'VCC3', 'VCCIO', 'VDDA', 'AVDD',
                             'VSB', 'VDD (SWA)', 'VDDQ', 'VPP'])
              and '[W]' not in c and '[%]' not in c),
-            ("fclk",          "Fabric Clock (FCLK) — AMD Ryzen",
+            ("fclk",          "Fabric Clock (FCLK) - AMD Ryzen",
              "Used for Ryzen fabric desync detection.\n"
              "Look for the Infinity Fabric clock speed in MHz (AMD systems only).\n"
              "Common names: FCLK [MHz]",
              self._col('FCLK'),
              lambda c: 'FCLK' in c.upper() and '[MHZ]' in c.upper()),
-            ("uclk",          "Unified Memory Clock (UCLK) — AMD Ryzen",
+            ("uclk",          "Unified Memory Clock (UCLK) - AMD Ryzen",
              "Used alongside FCLK for Ryzen fabric desync detection.\n"
              "Look for the unified memory controller clock in MHz (AMD systems only).\n"
              "Common names: UCLK [MHz]",
@@ -3936,7 +4504,7 @@ class TelemetryApp:
             chosen = self._sensor_picker_dialog(label, candidates, desc)
             if chosen:
                 existing_list = aliases.get(key, [])\
-                    if isinstance(aliases.get(key), list) else \
+                    if isinstance(aliases.get(key), list) else\
                     ([aliases[key]] if key in aliases else [])
                 if chosen not in existing_list:
                     existing_list.append(chosen)
@@ -3951,11 +4519,9 @@ class TelemetryApp:
         """Show a dialog asking the user to pick the correct column for a sensor.
         Returns the chosen column name, None if dismissed, or False if 'None of these'."""
         is_dark = self.is_dark
-        bg   = "#121212" if is_dark else "#f8f9fa"
-        bg2  = "#1e1e1e" if is_dark else "#ffffff"
-        bg3  = "#1a2a3a" if is_dark else "#e8f4fd"
-        fg   = "#e0e0e0" if is_dark else "#212529"
-        acc  = "#1f6aa5"
+        _t = self._get_theme(); bg = _t["bg"]; bg2 = _t["bg2"]; fg = _t["fg"]; accent = _t["accent"]
+        bg3  = _t.get("bg3", "#1a2a3a" if is_dark else "#e8f4fd")
+        acc  = accent
 
         result = [None]
 
@@ -3987,14 +4553,14 @@ class TelemetryApp:
         if description:
             desc_frame = tk.Frame(inner, bg=bg3, padx=10, pady=8,
                                   highlightthickness=1,
-                                  highlightbackground="#2a4a6a" if is_dark else "#b8d4ea")
+                                  highlightbackground=accent)
             desc_frame.pack(fill=tk.X, pady=(0, 10))
             tk.Label(desc_frame, text="ℹ  What to look for:",
                      font=('Segoe UI', 8, 'bold'), bg=bg3,
-                     fg="#4f8ef7", anchor='w').pack(anchor='w')
+                     fg=accent, anchor='w').pack(anchor='w')
             tk.Label(desc_frame, text=description,
                      font=('Segoe UI', 8), bg=bg3,
-                     fg="#a0c4e8" if is_dark else "#2a4a6a",
+                     fg=fg,
                      justify='left', anchor='w',
                      wraplength=pw - 60).pack(anchor='w', pady=(4, 0))
 
@@ -4002,7 +4568,8 @@ class TelemetryApp:
         list_frame.pack(fill=tk.BOTH, expand=True)
         canvas = tk.Canvas(list_frame, bg=bg2, highlightthickness=0,
                            height=min(len(candidates) * 28, 320))
-        sb = ttk.Scrollbar(list_frame, orient='vertical', command=canvas.yview)
+        sb = tk.Scrollbar(list_frame, orient='vertical', command=canvas.yview,
+                       bg=bg3, troughcolor=bg, activebackground=accent)
         radio_frame = tk.Frame(canvas, bg=bg2)
         canvas.create_window((0, 0), window=radio_frame, anchor='nw')
         radio_frame.bind("<Configure>", lambda e: canvas.configure(
@@ -4044,10 +4611,7 @@ class TelemetryApp:
         import threading
 
         is_dark = self.is_dark
-        bg      = "#121212" if is_dark else "#f8f9fa"
-        fg      = "#e0e0e0" if is_dark else "#212529"
-        accent  = "#1f6aa5" if is_dark else "#3498db"
-        bg2     = "#1e1e1e" if is_dark else "#ffffff"
+        _t = self._get_theme(); bg = _t["bg"]; bg2 = _t["bg2"]; fg = _t["fg"]; accent = _t["accent"]; bg3 = _t["bg3"]
 
         wait_win = tk.Toplevel(self.root)
         wait_win.title("Detecting Hardware")
@@ -4137,7 +4701,8 @@ class TelemetryApp:
             outer = tk.Frame(dialog, bg=bg)
             outer.pack(fill=tk.BOTH, expand=True, padx=12)
             canvas = tk.Canvas(outer, bg=bg, highlightthickness=0)
-            sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+            sb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview,
+                       bg=bg3, troughcolor=bg, activebackground=accent)
             body = tk.Frame(canvas, bg=bg)
             win_id = canvas.create_window((0, 0), window=body, anchor="nw")
             body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
@@ -4221,7 +4786,7 @@ class TelemetryApp:
             return
 
         is_dark  = self.is_dark
-        bg_dark  = "#121212" if is_dark else "#f8f9fa"
+        _t = self._get_theme(); bg_dark = _t["bg"]; bg = _t["bg"]; fg = _t["fg"]; accent = _t["accent"]
 
         wait_win = tk.Toplevel(self.root)
         wait_win.title("Generating Report")
@@ -4559,8 +5124,8 @@ class TelemetryApp:
 <title>RESYNC.ERR Session Report \u2014 {csv_name}</title>
 <style>
 :root{{--bg:#0d0d1a;--bg2:#13132b;--bg3:#1a1a38;--accent:#4f8ef7;--accent2:#a78bfa;
-      --text:#e2e8f0;--muted:#64748b;--border:#2d2d5a;--crit:#ff4d4d;--warn:#f59e0b;
-      --info:#38bdf8;--good:#22c55e;--radius:10px;}}
+      --text:
+      --info:
 *{{box-sizing:border-box;margin:0;padding:0;}}
 body{{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.6;}}
 .page-wrap{{max-width:1300px;margin:0 auto;padding:32px 24px;}}
@@ -4668,8 +5233,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
 
         def _show(results):
             is_dark = self.is_dark
-            bg     = "#121212" if is_dark else "#f8f9fa"
-            fg     = "#e0e0e0" if is_dark else "#212529"
+            _t = self._get_theme(); bg = _t["bg"]; fg = _t["fg"]; accent = _t["accent"]; bg3 = _t["bg3"]
             accent = "#1f6aa5" if is_dark else "#3498db"
 
             dialog = tk.Toplevel(self.root)
@@ -4689,7 +5253,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                     bg=bg, fg=accent).pack(pady=(14, 2))
 
             tk.Label(dialog,
-                    text=f"Analyzed {len(self.df)} samples — {len(results)} signature(s) detected",
+                    text=f"Analyzed {len(self.df)} samples - {len(results)} signature(s) detected",
                     font=('Segoe UI', 9),
                     bg=bg, fg="#888").pack(pady=(0, 10))
 
@@ -4697,7 +5261,8 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             outer.pack(fill=tk.BOTH, expand=True, padx=12)
 
             canvas = tk.Canvas(outer, bg=bg, highlightthickness=0)
-            sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+            sb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview,
+                       bg=bg3, troughcolor=bg, activebackground=accent)
             body = tk.Frame(canvas, bg=bg)
 
             wid = canvas.create_window((0, 0), window=body, anchor="nw")
@@ -4780,7 +5345,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                                  "MAX CPU", "CPU THREAD", "THREAD USAGE")
                         ),
 
-                        "CPU Clock Stretching — Major": (
+                        "CPU Clock Stretching - Major": (
                             _cols("EFFECTIVE", "CLOCK") |
                             _cols("CLOCK", "PERF") |
                             _cols("CPU", "USAGE") | _cols("CPU", "LOAD") |
@@ -4790,7 +5355,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                                  "CORE RATIO", "BUS CLOCK")
                         ),
 
-                        "CPU Clock Stretching — Minor": (
+                        "CPU Clock Stretching - Minor": (
                             _cols("EFFECTIVE", "CLOCK") |
                             _cols("CLOCK", "PERF") |
                             _cols("CPU", "USAGE") | _cols("CPU", "LOAD") |
@@ -5156,8 +5721,8 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                     is_crit = r['severity'] == 'CRITICAL'
                     is_info = r.get('severity') == 'INFO'
 
-                    card_bg   = "#2a0a0a" if (is_dark and is_crit) else \
-                                "#1a2a1a" if (is_dark and not is_crit) else \
+                    card_bg   = "#2a0a0a" if (is_dark and is_crit) else\
+                                "#1a2a1a" if (is_dark and not is_crit) else\
                                 "#fdecea" if is_crit else "#eafaf1"
 
                     sev_color = "#e74c3c" if is_crit else "#f39c12"
@@ -5256,8 +5821,11 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         top = ttk.Frame(self.left)
         top.pack(fill=tk.X, pady=(0, 10))
         ttk.Label(top, text="DASHBOARD", font=('Segoe UI', 12, 'bold')).pack(side=tk.LEFT)
-        ttk.Button(top, text="◐", command=self._toggle_theme, width=3).pack(side=tk.RIGHT)
-        ttk.Button(top, text="⟳", command=self._manual_update_check, width=3).pack(side=tk.RIGHT, padx=(0, 2))
+        ttk.Button(top, text="Theme", command=self._open_theme_editor).pack(side=tk.RIGHT)
+        ttk.Button(top, text="⟳", command=self._manual_update_check, width=3).pack(side=tk.RIGHT, padx=(0, 4))
+        self._tooltip_btn = ttk.Button(top, text="Tooltip: ON" if getattr(self, "_tooltip_enabled", True) else "Tooltip: OFF", width=16,
+                                       command=self._toggle_tooltip)
+        self._tooltip_btn.pack(side=tk.RIGHT, padx=(0, 4))
 
         mode_f = ttk.LabelFrame(self.left, text=" View Settings ", padding=8)
         mode_f.pack(fill=tk.X, pady=5)
@@ -5298,7 +5866,9 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         preset_master_f.pack(fill=tk.X, pady=5)
 
         self.preset_canvas = tk.Canvas(preset_master_f, height=140, highlightthickness=0)
-        self.preset_scroll = ttk.Scrollbar(preset_master_f, orient="vertical", command=self.preset_canvas.yview)
+        _t_ps = self._get_theme()
+        self.preset_scroll = tk.Scrollbar(preset_master_f, orient="vertical", command=self.preset_canvas.yview,
+                                          bg=_t_ps["bg3"], troughcolor=_t_ps["bg"], activebackground=_t_ps["accent"])
         self.grp_f = tk.Frame(self.preset_canvas)
 
         self.grp_f.columnconfigure(0, weight=1)
@@ -5339,23 +5909,23 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         self.filter_btn = ttk.Button(search_f, text="🚨 Detect Out-of-Spec Issues", style="Issue.TButton", command=self._toggle_filter)
         self.filter_btn.pack(fill=tk.X, pady=(0, 4))
 
-        _bg = "#121212" if self.is_dark else "#f8f9fa"
-        diag_row = tk.Frame(search_f, bg=_bg)
-        diag_row.pack(fill=tk.X, pady=(0, 4))
-        ttk.Button(diag_row, text="🔬 Diagnose Hardware Signatures",
+        _bg = self._get_theme()["bg"]
+        self._diag_row_frame = tk.Frame(search_f, bg=_bg)
+        self._diag_row_frame.pack(fill=tk.X, pady=(0, 4))
+        ttk.Button(self._diag_row_frame, text="🔬 Diagnose Hardware Signatures",
                    command=self._open_diagnosis,
                    style="Action.TButton").pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self._sig_badge_var = tk.StringVar(value="⏳")
         self._sig_badge_lbl = None
 
-        self._badge_crit_lbl = tk.Label(diag_row, text="", font=('Segoe UI', 8, 'bold'),
+        self._badge_crit_lbl = tk.Label(self._diag_row_frame, text="", font=('Segoe UI', 8, 'bold'),
                                          bg=_bg, fg="#ff4d4d", padx=3)
-        self._badge_warn_lbl = tk.Label(diag_row, text="", font=('Segoe UI', 8, 'bold'),
+        self._badge_warn_lbl = tk.Label(self._diag_row_frame, text="", font=('Segoe UI', 8, 'bold'),
                                          bg=_bg, fg="#f59e0b", padx=3)
-        self._badge_info_lbl = tk.Label(diag_row, text="", font=('Segoe UI', 8, 'bold'),
+        self._badge_info_lbl = tk.Label(self._diag_row_frame, text="", font=('Segoe UI', 8, 'bold'),
                                          bg=_bg, fg="#38bdf8", padx=3)
-        self._badge_ok_lbl   = tk.Label(diag_row, text="⏳", font=('Segoe UI', 8),
+        self._badge_ok_lbl   = tk.Label(self._diag_row_frame, text="⏳", font=('Segoe UI', 8),
                                          bg=_bg, fg="#888", padx=3)
 
         self._badge_ok_lbl.pack(side=tk.RIGHT)
@@ -5379,7 +5949,9 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         self.canv_f = ttk.Frame(search_f)
         self.canv_f.pack(fill=tk.BOTH, expand=True)
         self.canvas_checklist = tk.Canvas(self.canv_f, highlightthickness=0)
-        self.sc_checklist = ttk.Scrollbar(self.canv_f, orient="vertical", command=self.canvas_checklist.yview)
+        _t_sc = self._get_theme()
+        self.sc_checklist = tk.Scrollbar(self.canv_f, orient="vertical", command=self.canvas_checklist.yview,
+                                         bg=_t_sc["bg3"], troughcolor=_t_sc["bg"], activebackground=_t_sc["accent"])
         self.scroll_frame = tk.Frame(self.canvas_checklist)
         self._checklist_window = self.canvas_checklist.create_window((0, 0), window=self.scroll_frame, anchor="nw")
 
@@ -5445,20 +6017,69 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             self.fig.clf()
             self.fig = None
 
-        self.fig = Figure(figsize=(10, 6))
-        self.canvas_widget = FigureCanvasTkAgg(self.fig, master=self.right)
-        self._cid_move  = self.canvas_widget.mpl_connect('motion_notify_event', self._on_mouse_move)
-        self._cid_leave = self.canvas_widget.mpl_connect('axes_leave_event', self._on_mouse_leave)
-
         toolbar_f = ttk.Frame(self.right)
         toolbar_f.pack(side=tk.TOP, fill=tk.X)
+
+        _plot_container = tk.Frame(self.right)
+        _plot_container.pack(fill=tk.BOTH, expand=True)
+
+        self._legend_panel = tk.Frame(_plot_container, width=185)
+        self._legend_panel.pack(side=tk.RIGHT, fill=tk.Y)
+        self._legend_panel.pack_propagate(False)
+
+        self._legend_title = tk.Label(self._legend_panel, text="Legend",
+                                      font=('Segoe UI', 8, 'bold'), anchor='w')
+        self._legend_title.pack(fill=tk.X, padx=4, pady=(4, 0))
+
+        _leg_scroll_frame = tk.Frame(self._legend_panel)
+        _leg_scroll_frame.pack(fill=tk.BOTH, expand=True)
+
+        _t_init = self._get_theme()
+        self._legend_canvas = tk.Canvas(_leg_scroll_frame, highlightthickness=0, bd=0,
+                                        bg=_t_init.get("bg2","#1e1e1e"))
+        _leg_vsb = tk.Scrollbar(_leg_scroll_frame, orient='vertical',
+                                command=self._legend_canvas.yview,
+                                bg=_t_init.get("bg3","#2a2a2a"),
+                                troughcolor=_t_init.get("bg2","#1e1e1e"),
+                                activebackground=_t_init.get("accent","#1f6aa5"))
+        self._legend_canvas.configure(yscrollcommand=_leg_vsb.set)
+        _leg_vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        self._legend_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._legend_vsb = _leg_vsb
+
+        self._legend_inner = tk.Frame(self._legend_canvas)
+        self._legend_inner_id = self._legend_canvas.create_window(
+            (0, 0), window=self._legend_inner, anchor='nw')
+
+        def _on_leg_configure(e):
+            self._legend_canvas.configure(scrollregion=self._legend_canvas.bbox('all'))
+            self._legend_canvas.itemconfig(self._legend_inner_id,
+                                           width=self._legend_canvas.winfo_width())
+        self._legend_inner.bind('<Configure>', _on_leg_configure)
+        self._legend_canvas.bind('<Configure>', lambda e: self._legend_canvas.itemconfig(
+            self._legend_inner_id, width=e.width))
+
+        def _on_leg_scroll(e):
+            self._legend_canvas.yview_scroll(int(-1 * (e.delta / 120)), 'units')
+        self._legend_canvas.bind('<MouseWheel>', _on_leg_scroll)
+        self._legend_inner.bind('<MouseWheel>', _on_leg_scroll)
+
+        self.fig = Figure(figsize=(10, 6))
+        self.canvas_widget = FigureCanvasTkAgg(self.fig, master=_plot_container)
+        self._cid_move   = self.canvas_widget.mpl_connect('motion_notify_event', self._on_mouse_move)
+        self._cid_leave  = self.canvas_widget.mpl_connect('axes_leave_event',    self._on_mouse_leave)
+        self._cid_click  = self.canvas_widget.mpl_connect('button_press_event',  self._on_plot_click)
+        self._cid_pick   = self.canvas_widget.mpl_connect('pick_event',          self._on_legend_pick)
+        self._pinned_line = None
+
         toolbar = NavigationToolbar2Tk(self.canvas_widget, toolbar_f, pack_toolbar=False)
         toolbar.update()
         toolbar.pack(side=tk.LEFT)
-        self.canvas_widget.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        self.canvas_widget.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
     def _manual_update_check(self):
-        """Called when the user clicks ⟳ — always gives feedback, respects ignore/disable via on_ignore/on_disable."""
+        """Called when the user clicks ⟳ - always gives feedback, respects ignore/disable via on_ignore/on_disable."""
         self.show_toast("Checking for updates...")
         check_for_updates(
             self.root,
@@ -5482,7 +6103,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             self.group_map[cat].append(col)
 
         ui_order = ["Temperatures (°C)", "Utilization / Load (%)", "Clock Speeds (MHz)", "Power / Wattage (W)", "Voltage (V)", "Fan Speeds (RPM)"]
-        self.sorted_cats = [c for c in ui_order if c in self.group_map] + \
+        self.sorted_cats = [c for c in ui_order if c in self.group_map] +\
                            sorted([c for c in self.group_map.keys() if c not in ui_order])
 
         for cat in self.sorted_cats:
@@ -5492,7 +6113,21 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             for col in sorted(self.group_map[cat]):
                 v = self.vars.get(col, tk.BooleanVar(value=False))
                 self.vars[col] = v
-                cb = ttk.Checkbutton(self.scroll_frame, text=col, variable=v, command=self.update_plot,
+                def _make_cb_cmd(col_name, var):
+                    def _cmd():
+                        pinned = getattr(self, '_pinned_line', None)
+                        if pinned and pinned != col_name:
+
+                            var.set(False)
+                            self.show_toast(f'Unpin "{pinned[:30]}" first')
+                            return
+                        if pinned and pinned == col_name and not var.get():
+
+                            self._pinned_line = None
+                        self.update_plot()
+                    return _cmd
+                cb = ttk.Checkbutton(self.scroll_frame, text=col, variable=v,
+                                     command=_make_cb_cmd(col, v),
                                      style="Alert.TCheckbutton" if self._is_critical(col) else "TCheckbutton")
                 cb.pack(anchor=tk.W, padx=12)
                 self.cb_widgets[col] = cb
@@ -5575,8 +6210,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             is_dark = self.is_dark
         except Exception:
             is_dark = False
-        bg = "#121212" if is_dark else "#f8f9fa"
-        fg = "#e0e0e0" if is_dark else "#212529"
+        _t = self._get_theme(); bg = _t["bg"]; fg = _t["fg"]; accent = _t["accent"]
         accent = "#1f6aa5" if is_dark else "#3498db"
 
         dialog.configure(bg=bg)
@@ -5654,8 +6288,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                 is_dark = self.is_dark
             except Exception:
                 is_dark = False
-            bg = "#121212" if is_dark else "#f8f9fa"
-            fg = "#e0e0e0" if is_dark else "#212529"
+            _t = self._get_theme(); bg = _t["bg"]; fg = _t["fg"]; accent = _t["accent"]
 
             dialog.configure(bg=bg)
             self.root.update_idletasks()
@@ -5816,7 +6449,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         import threading
 
         is_dark = self.is_dark
-        bg_dark = "#121212" if is_dark else "#f8f9fa"
+        _t = self._get_theme(); bg_dark = _t["bg"]; bg = _t["bg"]; fg = _t["fg"]; accent = _t["accent"]
 
         wait_win = tk.Toplevel(self.root)
         wait_win.title("Loading CSV")
@@ -5831,28 +6464,29 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         wait_win.transient(self.root)
         wait_win.grab_set()
 
-        outer = tk.Frame(wait_win, bg="#1f6aa5", padx=2, pady=2)
+        muted_fg = _t.get("bg3", "#888")
+        outer = tk.Frame(wait_win, bg=accent, padx=2, pady=2)
         outer.pack(fill=tk.BOTH, expand=True)
-        inner = tk.Frame(outer, bg=bg_dark, padx=20, pady=16)
+        inner = tk.Frame(outer, bg=bg, padx=20, pady=16)
         inner.pack(fill=tk.BOTH, expand=True)
 
-        title_row = tk.Frame(inner, bg=bg_dark)
+        title_row = tk.Frame(inner, bg=bg)
         title_row.pack(anchor='w')
         tk.Label(title_row, text="📂  Loading CSV",
-                 font=('Segoe UI', 11, 'bold'), bg=bg_dark, fg="#4f8ef7").pack(side=tk.LEFT)
+                 font=('Segoe UI', 11, 'bold'), bg=bg, fg=fg).pack(side=tk.LEFT)
         spin_var = tk.StringVar(value=" ⠋")
         tk.Label(title_row, textvariable=spin_var,
-                 font=('Segoe UI', 11), bg=bg_dark, fg="#1f6aa5").pack(side=tk.LEFT, padx=(6, 0))
+                 font=('Segoe UI', 11), bg=bg, fg=accent).pack(side=tk.LEFT, padx=(6, 0))
 
         fname = path.replace('\\', '/').split('/')[-1]
-        tk.Label(inner, text=fname, font=('Segoe UI', 9), bg=bg_dark,
-                 fg="#888", anchor='w').pack(fill=tk.X, pady=(6, 0))
+        tk.Label(inner, text=fname, font=('Segoe UI', 9), bg=bg,
+                 fg=muted_fg, anchor='w').pack(fill=tk.X, pady=(6, 0))
 
-        bar_frame = tk.Frame(inner, bg=bg_dark)
+        bar_frame = tk.Frame(inner, bg=bg)
         bar_frame.pack(fill=tk.X, pady=(8, 0))
-        bar_bg = tk.Frame(bar_frame, bg="#2a2a2a" if is_dark else "#dee2e6", height=4, bd=0)
+        bar_bg = tk.Frame(bar_frame, bg=muted_fg, height=4, bd=0)
         bar_bg.pack(fill=tk.X)
-        bar_fg = tk.Frame(bar_bg, bg="#1f6aa5", height=4, bd=0)
+        bar_fg = tk.Frame(bar_bg, bg=accent, height=4, bd=0)
         bar_fg.place(x=0, y=0, relheight=1.0, relwidth=0.0)
 
         _bar_pos  = [0.0]
@@ -5946,7 +6580,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                 img = Image.open(buf).convert('RGB')
                 output = io.BytesIO()
                 img.save(output, 'BMP')
-                data = output.getvalue()[14:]        
+                data = output.getvalue()[14:]
 
                 u32.OpenClipboard(0)
                 u32.EmptyClipboard()
@@ -5954,7 +6588,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                 ptr = k32.GlobalLock(h)
                 ctypes.memmove(ptr, data, len(data))
                 k32.GlobalUnlock(h)
-                u32.SetClipboardData(8, h)            
+                u32.SetClipboardData(8, h)
                 u32.CloseClipboard()
                 self.show_toast("Chart copied to clipboard")
             else:
@@ -5965,30 +6599,242 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
     def _clear_cursors(self):
         self._last_cursor_idx = -1
         for line in self.cursor_lines:
-            try:
-                line.remove()
-            except:
-                pass
+            try: line.remove()
+            except: pass
         self.cursor_lines = []
         if self.cursor_text:
-            try:
-                self.cursor_text.remove()
-            except:
-                pass
+            try: self.cursor_text.remove()
+            except: pass
             self.cursor_text = None
+        if hasattr(self, '_line_annotation') and self._line_annotation:
+            try: self._line_annotation.remove()
+            except: pass
+            self._line_annotation = None
+        if hasattr(self, '_prev_highlight') and self._prev_highlight:
+            try:
+                self._prev_highlight.set_linewidth(self._prev_highlight_lw)
+                self._prev_highlight.set_zorder(self._prev_highlight_z)
+            except: pass
+            self._prev_highlight = None
 
     def _on_mouse_leave(self, event):
         self._last_cursor_idx = -1
         self._clear_cursors()
         self.canvas_widget.draw_idle()
 
+    def _update_tk_legend(self, entries):
+        """Rebuild the Tkinter legend panel. entries = list of (label, color, col_name, is_header)."""
+        if not hasattr(self, '_legend_inner'):
+            return
+        t = self._get_theme()
+        bg     = t["bg"]
+        bg2    = t["bg2"]
+        bg3    = t["bg3"]
+        fg     = t["fg"]
+        accent = t["accent"]
+
+        self._legend_panel.configure(bg=bg2)
+        self._legend_title.configure(bg=bg2, fg=accent)
+        self._legend_canvas.configure(bg=bg2)
+        self._legend_inner.configure(bg=bg2)
+
+        for w in self._legend_inner.winfo_children():
+            w.destroy()
+
+        pinned = getattr(self, '_pinned_line', None)
+
+        for entry in entries:
+            label, color, col_name, is_header = entry[0], entry[1], entry[2], entry[3]
+            linestyle = entry[4] if len(entry) > 4 else '-'
+            if is_header:
+                hl = tk.Label(self._legend_inner, text=label, font=('Segoe UI', 8, 'bold'),
+                              bg=bg2, fg=accent, anchor='w', padx=4)
+                hl.pack(fill=tk.X, pady=(6, 1))
+                hl.bind('<MouseWheel>', lambda e: self._legend_canvas.yview_scroll(
+                    int(-1*(e.delta/120)), 'units'))
+                tk.Frame(self._legend_inner, bg=bg3, height=1).pack(fill=tk.X, padx=4)
+                continue
+
+            is_pinned = (pinned == col_name)
+
+            cell = tk.Frame(self._legend_inner, bg=bg2, cursor='hand2')
+            cell.pack(fill=tk.X, padx=2, pady=1)
+
+            row = tk.Frame(cell, bg=bg2)
+            row.pack(fill=tk.X)
+
+            SWATCH_W, SWATCH_H = 28, 12
+            swatch = tk.Canvas(row, width=SWATCH_W, height=SWATCH_H,
+                               bg=bg2, highlightthickness=0, bd=0)
+            swatch.pack(side=tk.LEFT, padx=(4, 4), pady=3)
+
+            _dash_map = {
+                '-':   '',
+                '--':  (4, 2),
+                ':':   (1, 2),
+                '-.':  (4, 2, 1, 2),
+                'solid':      '',
+                'dashed':     (4, 2),
+                'dotted':     (1, 2),
+                'dashdot':    (4, 2, 1, 2),
+            }
+            _dash = _dash_map.get(linestyle, '')
+            mid_y = SWATCH_H // 2
+            _kw = dict(fill=color, width=2)
+            if _dash:
+                _kw['dash'] = _dash
+            swatch.create_line(2, mid_y, SWATCH_W - 2, mid_y, **_kw)
+
+            name_line, *stats_parts = label.split('\n')
+            name_line = name_line.strip().lstrip('✓ ')
+            lbl_text = ('📌 ' if is_pinned else '') + name_line
+            lbl = tk.Label(row, text=lbl_text,
+                           font=('Segoe UI', 8, 'bold' if is_pinned else 'normal'),
+                           bg=bg2, fg=fg, anchor='w', wraplength=150, justify='left')
+            lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+            if stats_parts:
+                stats_lbl = tk.Label(cell, text=stats_parts[0].strip(),
+                                     font=('Segoe UI', 8, 'bold'), bg=bg2,
+                                     fg=accent if is_pinned else fg,
+                                     anchor='w', padx=20)
+                stats_lbl.pack(fill=tk.X)
+
+            hover_widgets = [cell, row, lbl] + ([stats_lbl] if stats_parts else [])
+
+            _inside = [0]
+
+            def _on_enter(e, ws=hover_widgets, counter=_inside, sw=swatch):
+                counter[0] += 1
+                for w in ws:
+                    try: w.configure(bg=bg3)
+                    except Exception: pass
+                try: sw.configure(bg=bg3)
+                except Exception: pass
+
+            def _on_leave(e, ws=hover_widgets, counter=_inside, c=cell, sw=swatch):
+                counter[0] -= 1
+                def _maybe_reset():
+                    if counter[0] <= 0:
+                        counter[0] = 0
+                        for w in ws:
+                            try: w.configure(bg=bg2)
+                            except Exception: pass
+                        try: sw.configure(bg=bg2)
+                        except Exception: pass
+                c.after(20, _maybe_reset)
+
+            def _on_click(e, cn=col_name):
+                cur_pin = getattr(self, '_pinned_line', None)
+                if cur_pin == cn:
+                    self._pinned_line = None
+                    self.show_toast('Unpinned')
+                else:
+                    self._pinned_line = cn
+                    self.show_toast(f'Pinned: {cn[:40]}')
+                self.update_plot()
+
+            def _on_scroll(e, lc=self._legend_canvas):
+                lc.yview_scroll(int(-1 * (e.delta / 120)), 'units')
+
+            bind_widgets = [cell, row, swatch, lbl] + ([stats_lbl] if stats_parts else [])
+            for w in bind_widgets:
+                w.bind('<Enter>',      _on_enter)
+                w.bind('<Leave>',      _on_leave)
+                w.bind('<Button-1>',   _on_click)
+                w.bind('<MouseWheel>', _on_scroll)
+
+        self._legend_canvas.yview_moveto(0)
+        self._legend_canvas.configure(scrollregion=self._legend_canvas.bbox('all'))
+
+    def _on_legend_pick(self, event):
+        """Click a legend entry to pin/unpin that sensor."""
+        artist = event.artist
+        try:
+            label = artist.get_label()
+        except Exception:
+            return
+        if not label or label.startswith('_') or label.startswith('──'):
+            return
+        col_name = label.split('\n')[0].strip()
+
+        col_name = col_name.lstrip(' ✓')
+        if not col_name or col_name not in self.df.columns:
+            return
+        if self._pinned_line == col_name:
+            self._pinned_line = None
+            self.show_toast('Unpinned')
+        else:
+            self._pinned_line = col_name
+            self.show_toast(f'Pinned: {col_name[:40]}')
+        self._last_cursor_idx = -1
+        self.update_plot()
+
+    def _on_plot_click(self, event):
+        """Left-click to pin a line; right-click to unpin."""
+        if event.inaxes is None:
+            return
+
+        if event.button == 3:
+            if self._pinned_line:
+                self._pinned_line = None
+                self.show_toast("Unpinned")
+                self.update_plot()
+            return
+        if event.button != 1:
+            return
+
+        if event.inaxes is getattr(self, '_sig_timeline_ax', None):
+            return
+        plot_axes = [a for a in self.fig.axes if a is not getattr(self, '_sig_timeline_ax', None)]
+        ax = event.inaxes if event.inaxes in plot_axes else None
+        if ax is None or event.ydata is None:
+            return
+        try:
+            ylim = ax.get_ylim()
+            y_range = max(abs(ylim[1] - ylim[0]), 1e-9)
+
+            x_vals = getattr(self, '_last_x_vals', None)
+            if x_vals is not None and len(x_vals):
+                idx = int(np.argmin(np.abs(x_vals - event.xdata)))
+            else:
+                idx = 0
+            closest_line, closest_dist = None, float('inf')
+            for line in ax.get_lines():
+                lbl = line.get_label()
+                if lbl.startswith('_') or lbl.startswith('REF:'):
+                    continue
+                ydata = line.get_ydata()
+                if not len(ydata): continue
+                yi = min(idx, len(ydata) - 1)
+                nd = abs(float(ydata[yi]) - float(event.ydata)) / y_range
+                if nd < closest_dist:
+                    closest_dist, closest_line = nd, line
+            if closest_line and closest_dist < 0.10:
+                col_name = closest_line.get_label().split('\n')[0].strip()
+                if self._pinned_line == col_name:
+
+                    self._pinned_line = None
+                    self.show_toast("Unpinned")
+                else:
+                    self._pinned_line = col_name
+                    self.show_toast(f"Pinned: {col_name[:40]}")
+                self.update_plot()
+            else:
+                if self._pinned_line:
+                    self._pinned_line = None
+                    self.update_plot()
+        except Exception:
+            pass
+
     def _on_mouse_move(self, event):
         if event.inaxes is None:
             self._on_mouse_leave(event)
             return
         try:
-            fc = '#252525' if self.is_dark else 'white'
-            tc = 'white'   if self.is_dark else 'black'
+            fc = getattr(self, '_hover_fc', '#252525' if self.is_dark else 'white')
+            tc = getattr(self, '_hover_tc', 'white' if self.is_dark else 'black')
+            cursor_color = getattr(self, '_hover_cursor_color', 'white' if self.is_dark else 'gray')
 
             if self.heatmap_mode and hasattr(self, '_heatmap_sel') and self._heatmap_sel:
                 x_vals = self._heatmap_x_vals
@@ -6005,12 +6851,16 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                     ax = event.inaxes
                     for a in self.fig.axes:
                         self.cursor_lines.append(a.axvline(x=x_vals[idx],
-                            color='white' if self.is_dark else 'gray', ls='--', alpha=0.5))
+                            color=cursor_color, ls='--', alpha=0.5))
                     x_label = self._format_elapsed(x_vals[idx]) if self.time_mode else f"Rec: {idx}"
                     txt = f"{x_label}\n{col[:35]}: {val:.2f}"
-                    self.cursor_text = self.fig.text(0.01, 0.99, txt, va='top', ha='left',
-                        bbox=dict(boxstyle='round', facecolor=fc, alpha=0.85, edgecolor='#555'),
-                        fontsize=8, color=tc)
+                    if getattr(self, '_tooltip_enabled', True):
+                        self.cursor_text = self.fig.text(
+                            0.01, 0.99, txt, va='top', ha='left',
+                            wrap=True,
+                            bbox=dict(boxstyle='round', facecolor=fc, alpha=0.85, edgecolor='#555'),
+                            fontsize=8, color=tc)
+                        self.cursor_text._get_wrap_line_width = lambda: 160
                     self.canvas_widget.draw_idle()
                 return
 
@@ -6032,31 +6882,150 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
 
             self._clear_cursors()
             plot_axes = [a for a in self.fig.axes if a is not getattr(self, '_sig_timeline_ax', None)]
+            plot_x = x_vals[idx] if use_time else idx
             for a in self.fig.axes:
-                plot_x = x_vals[idx] if use_time else idx
-                l = a.axvline(x=plot_x, color='white' if self.is_dark else 'gray', ls='--', alpha=0.5)
-                self.cursor_lines.append(l)
+                self.cursor_lines.append(
+                    a.axvline(x=plot_x, color=cursor_color, ls='--', alpha=0.5))
 
-            sel = [c for c, v in self.vars.items() if v.get() and c in self.df.columns]
+            sel  = [c for c, v in self.vars.items() if v.get() and c in self.df.columns]
+            row  = self.df.iloc[idx]
+            stats_cache = getattr(self, '_sensor_stats_cache', {})
 
-            if use_time:
-                txt = f"Time: {self._format_elapsed(x_vals[idx])}\n"
-            else:
-                txt = f"Rec: {idx}\n"
+            txt = f"Time: {self._format_elapsed(x_vals[idx])}\n" if use_time else f"Rec: {idx}\n"
 
             if self.delta_mode and len(sel) >= 2:
-                d_val = abs(self.df.iloc[idx][sel[0]] - self.df.iloc[idx][sel[1]])
+                d_val = abs(row[sel[0]] - row[sel[1]])
                 txt += f"Δ Delta: {d_val:.2f}\n---\n"
-            txt += "\n".join([f"{c}: {self.df.iloc[idx][c]:.2f}" for c in sel])
+
+            _pinned = getattr(self, '_pinned_line', None)
+            display_sel = [_pinned] if _pinned and _pinned in sel else sel
+            sensor_lines = []
+            for c in display_sel:
+                curr = row[c] if c in row.index else float('nan')
+                s_min, s_max = stats_cache.get(c, (float('nan'), float('nan')))
+                sensor_lines.append(f"{c}: {curr:.2f}  (min {s_min:.1f}  max {s_max:.1f})")
+            if _pinned:
+                sensor_lines.append("── click line to unpin ──")
+            txt += "\n".join(sensor_lines)
 
             ax = event.inaxes if event.inaxes in plot_axes else (plot_axes[0] if plot_axes else event.inaxes)
-            self.cursor_text = self.fig.text(0.01, 0.99, txt, va='top', ha='left',
-                bbox=dict(boxstyle='round', facecolor=fc, alpha=0.8, edgecolor='#555'),
-                fontsize=8, color=tc)
+            closest_line = None
+            closest_dist = float('inf')
+            _pinned = getattr(self, '_pinned_line', None)
+            if not _pinned and ax and event.ydata is not None:
+                ylim = ax.get_ylim()
+                y_range = max(abs(ylim[1] - ylim[0]), 1e-9)
+                for line in ax.get_lines():
+                    lbl = line.get_label()
+                    if lbl.startswith('_') or lbl.startswith('REF:'):
+                        continue
+                    ydata = line.get_ydata()
+                    if len(ydata) == 0:
+                        continue
+                    try:
+                        yi = min(idx, len(ydata) - 1)
+                        norm_dist = abs(float(ydata[yi]) - float(event.ydata)) / y_range
+                        if norm_dist < closest_dist:
+                            closest_dist = norm_dist
+                            closest_line = line
+                    except Exception:
+                        pass
+
+            prev_hl   = getattr(self, '_prev_highlight', None)
+            prev_dist = getattr(self, '_prev_highlight_dist', float('inf'))
+            SWITCH_THRESHOLD = 0.08
+            HYSTERESIS       = 0.70
+
+            if closest_line and closest_dist < SWITCH_THRESHOLD:
+                switch = (closest_line is not prev_hl and
+                          (prev_hl is None or closest_dist < prev_dist * HYSTERESIS))
+                if switch:
+
+                    if prev_hl:
+                        try:
+                            prev_hl.set_linewidth(self._prev_highlight_lw)
+                            prev_hl.set_zorder(self._prev_highlight_z)
+                        except Exception: pass
+                    self._prev_highlight_lw   = closest_line.get_linewidth()
+                    self._prev_highlight_z    = closest_line.get_zorder()
+                    self._prev_highlight_dist = closest_dist
+                    closest_line.set_linewidth(self._prev_highlight_lw + 1.5)
+                    closest_line.set_zorder(10)
+                    self._prev_highlight = closest_line
+                else:
+
+                    self._prev_highlight_dist = closest_dist
+
+                col_name = closest_line.get_label().split('\n')[0].strip()
+                if col_name in self.df.columns:
+                    curr = row[col_name] if col_name in row.index else float('nan')
+                    s_min, s_max = stats_cache.get(col_name, (float('nan'), float('nan')))
+                    ann_txt = f"{col_name}\nCurr: {curr:.2f}  Min: {s_min:.1f}  Max: {s_max:.1f}"
+                    ann = getattr(self, '_line_annotation', None)
+                    if ann is not None:
+
+                        ann.set_text(ann_txt)
+                        ann.xy = (plot_x, curr)
+                    else:
+                        self._line_annotation = ax.annotate(
+                            ann_txt,
+                            xy=(plot_x, curr),
+                            xytext=(12, 12), textcoords='offset points',
+                            fontsize=8, color=tc,
+                            bbox=dict(boxstyle='round,pad=0.4', facecolor=fc, alpha=0.92,
+                                      edgecolor=closest_line.get_color(), linewidth=1.5),
+                            zorder=20, annotation_clip=False
+                        )
+            elif _pinned and _pinned in self.df.columns and ax:
+
+                curr = row[_pinned] if _pinned in row.index else float('nan')
+                s_min, s_max = stats_cache.get(_pinned, (float('nan'), float('nan')))
+                ann_txt = f"{_pinned}\nCurr: {curr:.2f}  Min: {s_min:.1f}  Max: {s_max:.1f}"
+                ann = getattr(self, '_line_annotation', None)
+                if ann is not None:
+                    ann.set_text(ann_txt)
+                    ann.xy = (plot_x, curr)
+                else:
+
+                    pin_color = tc
+                    for line in ax.get_lines():
+                        if line.get_label().split('\n')[0].strip() == _pinned:
+                            pin_color = line.get_color()
+                            break
+                    self._line_annotation = ax.annotate(
+                        ann_txt,
+                        xy=(plot_x, curr),
+                        xytext=(12, 12), textcoords='offset points',
+                        fontsize=8, color=tc,
+                        bbox=dict(boxstyle='round,pad=0.4', facecolor=fc, alpha=0.92,
+                                  edgecolor=pin_color, linewidth=1.5),
+                        zorder=20, annotation_clip=False
+                    )
+            else:
+
+                if prev_hl:
+                    try:
+                        prev_hl.set_linewidth(self._prev_highlight_lw)
+                        prev_hl.set_zorder(self._prev_highlight_z)
+                    except Exception: pass
+                    self._prev_highlight      = None
+                    self._prev_highlight_dist = float('inf')
+                ann = getattr(self, '_line_annotation', None)
+                if ann is not None:
+                    try: ann.remove()
+                    except Exception: pass
+                    self._line_annotation = None
+
+            if getattr(self, '_tooltip_enabled', True):
+                self.cursor_text = self.fig.text(
+                    0.01, 0.99, txt, va='top', ha='left',
+                    wrap=True,
+                    bbox=dict(boxstyle='round', facecolor=fc, alpha=0.8, edgecolor='#555'),
+                    fontsize=8, color=tc)
+                self.cursor_text._get_wrap_line_width = lambda: self.fig.get_figwidth() * self.fig.dpi * 0.20
             self.canvas_widget.draw_idle()
         except Exception:
             pass
-
 
     def _calc_timeline_rows(self, hits):
         if not hits:
@@ -6112,8 +7081,8 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                 _cols("CPU","POWER") | _cols("CPU","PACKAGE","POWER") | _cols("IA","POWER")
             ),
             "CPU Bottleneck": _any("TOTAL CPU","CPU USAGE","CPU LOAD","CPU UTIL","CPU AUSLASTUNG","CPU BELASTUNG","GPU USAGE","GPU CORE LOAD","GPU LOAD","GPU AUSLASTUNG","GPU CORE USAGE","MAX CPU","CPU THREAD","THREAD USAGE"),
-            "CPU Clock Stretching — Major": (_cols("EFFECTIVE","CLOCK") | _cols("CLOCK","PERF") | _cols("CPU","USAGE") | _cols("CPU","LOAD") | _any("TOTAL CPU USAGE","TOTAL CPU LOAD","AVERAGE EFFECTIVE","EFF CLOCK","T0 EFFECTIVE","T1 EFFECTIVE","CORE RATIO","BUS CLOCK")),
-            "CPU Clock Stretching — Minor": (_cols("EFFECTIVE","CLOCK") | _cols("CLOCK","PERF") | _cols("CPU","USAGE") | _cols("CPU","LOAD") | _any("TOTAL CPU USAGE","TOTAL CPU LOAD","AVERAGE EFFECTIVE","EFF CLOCK","T0 EFFECTIVE","T1 EFFECTIVE")),
+            "CPU Clock Stretching - Major": (_cols("EFFECTIVE","CLOCK") | _cols("CLOCK","PERF") | _cols("CPU","USAGE") | _cols("CPU","LOAD") | _any("TOTAL CPU USAGE","TOTAL CPU LOAD","AVERAGE EFFECTIVE","EFF CLOCK","T0 EFFECTIVE","T1 EFFECTIVE","CORE RATIO","BUS CLOCK")),
+            "CPU Clock Stretching - Minor": (_cols("EFFECTIVE","CLOCK") | _cols("CLOCK","PERF") | _cols("CPU","USAGE") | _cols("CPU","LOAD") | _any("TOTAL CPU USAGE","TOTAL CPU LOAD","AVERAGE EFFECTIVE","EFF CLOCK","T0 EFFECTIVE","T1 EFFECTIVE")),
             "GPU Thermal Warning": _any("GPU TEMPERATURE","GPU TEMP [","GPU HOT","GPU HOTSPOT","HOT SPOT","GPU JUNCTION","GPU MEMORY JUNCTION","GPU THERMAL","THERMAL LIMIT","GPU EDGE","EDGE TEMP","GPU JUNCTION TEMP","GPU CORE TEMP","GPU DIODE","GPU TEMPERATUR"),
             "GPU Overheating (Hotspot)": (_any("GPU TEMPERATURE","GPU TEMP [","GPU HOT","GPU HOTSPOT","HOT SPOT","GPU JUNCTION","GPU MEMORY JUNCTION","GPU THERMAL","THERMAL LIMIT","GPU EDGE","EDGE TEMP","GPU CORE TEMP","GPU DIODE","GPU TEMPERATUR") | _cols("GPU","POWER") | _cols("GPU","CLOCK") | _cols("GPU","USAGE")),
             "GPU Driver TDR (Timeout)": (_cols("GPU","USAGE") | _cols("GPU","LOAD") | _cols("GPU","CLOCK") | _cols("GPU","FREQUENCY") | _any("GPU AUSLASTUNG","GPU TAKT","GPU CORE USAGE","GPU CORE CLOCK","GPU EFFECTIVE CLOCK","GPU CROSSBAR")),
@@ -6166,8 +7135,9 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
     def _draw_sig_timeline(self, ax, x_vals, hits):
         sev_colors = {'CRITICAL': '#e74c3c', 'WARNING': '#f39c12', 'INFO': '#3498db'}
         is_dark = self.is_dark
+        bg2_color = self._get_theme()["bg2"]
 
-        ax.set_facecolor('#0d0d0d' if is_dark else '#f5f5f5')
+        ax.set_facecolor(bg2_color)
         ax.tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
         for spine in ax.spines.values():
             spine.set_visible(False)
@@ -6196,7 +7166,6 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             except Exception:
                 return f'{xv:.1f}'
 
-        # Expand hits into one entry per span
         entries = []
         for hit in hits:
             spans = hit.get('spans') or []
@@ -6217,9 +7186,8 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                     has_span = False
                 entries.append((hit, x0, x1, has_span, span_idx == 0))
 
-        # Minimum gap between bar edges
         BAR_GAP = x_range * 0.003
-        # Estimated x-width that one character occupies as a fraction of x_range
+
         CHAR_WIDTH = x_range * 0.012
 
         def _label_budget(x0, x1, name):
@@ -6230,8 +7198,6 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             half_w = len(text) * CHAR_WIDTH / 2
             return text, half_w
 
-        # Greedy row packing: track rightmost claimed x per row,
-        # including label overhang beyond the bar's right edge.
         row_right = []
         entry_rows = []
         entry_labels = []
@@ -6383,15 +7349,34 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         self.fig.clear()
         self._clear_cursors()
         is_dark = self.is_dark
-        bg_color, text_color, grid_color = ("#121212", "white", "#333333") if is_dark else ("white", "black", "#e0e0e0")
+        _t         = self._get_theme()
+        bg_color   = _t["bg"]
+        bg2_color  = _t["bg2"]
+        text_color = _t["fg"]
+        grid_color = _t["bg3"]
         self.fig.patch.set_facecolor(bg_color)
         sel = [c for c, v in self.vars.items() if v.get() and c in self.df.columns]
 
+        self._sensor_stats_cache = {
+            c: (float(self.df[c].min()), float(self.df[c].max()))
+            for c in sel if c in self.df.columns
+        }
+
+        _hc = self._get_theme()
+        self._hover_fc = _hc["bg2"]
+        self._hover_tc = _hc["fg"]
+        self._hover_cursor_color = 'white' if self.is_dark else 'gray'
+
         if self.heatmap_mode:
+            if hasattr(self, '_legend_panel'):
+                self._legend_panel.pack_forget()
             self._draw_heatmap(sel)
             return
 
+        if hasattr(self, '_legend_panel'):
+            self._legend_panel.pack(side=tk.RIGHT, fill=tk.Y)
         x_vals, ts, use_time = self._get_x_axis()
+        self._last_x_vals = x_vals
         ref_x = self._get_ref_x_axis()
 
         from matplotlib.gridspec import GridSpec
@@ -6427,7 +7412,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
 
         if self.delta_mode and self.multi_mode:
             ax = self.fig.add_subplot(self._main_plot_gs if self._main_plot_gs is not None else 111)
-            ax.set_facecolor("#1e1e1e" if is_dark else "#fdfdfd")
+            ax.set_facecolor(bg2_color)
             ax.text(0.5, 0.5, "Turn off Multi Mode to use Delta",
                     ha='center', va='center', color='#ffcc00', fontsize=12, fontweight='bold')
             self.canvas_widget.draw_idle()
@@ -6442,7 +7427,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                 self._timeline_tooltip = None
             else:
                 ax = self.fig.add_subplot(111)
-                ax.set_facecolor("#1e1e1e" if is_dark else "#fdfdfd")
+                ax.set_facecolor(bg2_color)
                 ax.text(0.5, 0.5, "No Sensors Selected", ha='center', va='center', color='gray')
             self.canvas_widget.draw_idle()
             return
@@ -6457,7 +7442,69 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                     ax.axhline(y=high, color='#ff4d4d', ls='--', lw=1, alpha=0.5, zorder=1)
                     break
 
-        colors = matplotlib.rcParams['axes.prop_cycle'].by_key()['color']
+        _tc    = self._get_theme()
+        _base6 = [_tc.get(f"plot_c{i}", matplotlib.rcParams['axes.prop_cycle'].by_key()['color'][i % 10])
+                  for i in range(6)]
+
+        def _expand_palette(base, n):
+            """Expand base colors to n maximally-distinguishable colors.
+            Uses the Golomb ruler / golden-ratio hue spacing strategy:
+            new hues are placed at the point maximally distant from all
+            existing hues on the color wheel, then brightness is alternated
+            to create a second dimension of separation."""
+            import colorsys, math
+            result = list(base)
+            if n <= len(base):
+                return result[:n]
+
+            hls_base = []
+            for c in base:
+                try:
+                    r = int(c[1:3],16)/255; g = int(c[3:5],16)/255; b = int(c[5:7],16)/255
+                    hls_base.append(colorsys.rgb_to_hls(r, g, b))
+                except Exception:
+                    hls_base.append((0, 0.5, 0.7))
+
+            avg_l = sum(v[1] for v in hls_base) / len(hls_base)
+            avg_s = sum(v[2] for v in hls_base) / len(hls_base)
+            used_hues = [h for h, l, s in hls_base]
+
+            bright_levels = [
+                min(0.82, avg_l + 0.22),
+                max(0.28, avg_l - 0.18),
+                min(0.90, avg_l + 0.35),
+                max(0.18, avg_l - 0.30),
+            ]
+
+            def _min_angular_dist(h, existing):
+                """Minimum angular distance from h to any hue in existing (0-1 scale)."""
+                dists = [min(abs(h - e), 1 - abs(h - e)) for e in existing]
+                return min(dists) if dists else 1.0
+
+            extra_idx = 0
+            while len(result) < n:
+
+                best_h, best_dist = 0.0, -1.0
+
+                for deg in range(360):
+                    h = deg / 360.0
+                    d = _min_angular_dist(h, used_hues)
+                    if d > best_dist:
+                        best_dist = d
+                        best_h = h
+
+                lv = bright_levels[extra_idx % len(bright_levels)]
+
+                sv = min(1.0, max(0.35, avg_s + (0.08 if extra_idx % 2 == 0 else -0.08)))
+
+                r2, g2, b2 = colorsys.hls_to_rgb(best_h, lv, sv)
+                result.append(f"#{int(r2*255):02x}{int(g2*255):02x}{int(b2*255):02x}")
+                used_hues.append(best_h)
+                extra_idx += 1
+
+            return result
+        num_sel = len(sel) if sel else 6
+        colors = _expand_palette(_base6, max(num_sel, 6))
 
         if self.multi_mode:
             from matplotlib.gridspec import GridSpecFromSubplotSpec
@@ -6475,9 +7522,9 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
 
             hspace     = min(0.6, max(0.15, 1.2 / num_plots))
             self._last_multi_hspace = hspace
-            legend_fs  = max(7, 9 - num_plots // 4)
+            legend_fs  = max(8, 10 - num_plots // 5)
             tick_fs    = max(7, 9 - num_plots // 5)
-            show_stats = num_plots <= 4
+            show_stats = num_plots <= 8
 
             _inner = GridSpecFromSubplotSpec(
                 num_plots, 1,
@@ -6488,7 +7535,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             for i, cat_name in enumerate(active_cats):
                 ax = self.fig.add_subplot(_inner[i], sharex=axes[0] if axes else None)
                 axes.append(ax)
-                ax.set_facecolor("#1e1e1e" if is_dark else "#fdfdfd")
+                ax.set_facecolor(bg2_color)
                 if num_plots <= 5:
                     ax.set_ylabel(cat_name, color=text_color, fontsize=max(7, 9 - num_plots // 5),
                                   fontweight='bold', labelpad=2)
@@ -6501,12 +7548,16 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                                 label=f"REF: {col_name}")
                     series = self.df[col_name].dropna()
                     if show_stats:
-                        stats = f"Min: {series.min():.1f}  Avg: {series.mean():.1f}  Max: {series.max():.1f}"
+                        stats = f"▼{series.min():.1f}  ~{series.mean():.1f}  ▲{series.max():.1f}"
                         label = f"{col_name}\n{stats}"
                     else:
                         label = col_name
+                    _pinned = getattr(self, '_pinned_line', None)
+                    _is_pin = (_pinned == col_name)
+                    _alpha  = 1.0 if (_pinned is None or _is_pin) else 0.25
+                    _lw     = 2.5 if _is_pin else 1.5
                     ax.plot(x_vals, self.df[col_name], label=label,
-                            lw=1.5, color=main_color, zorder=3)
+                            lw=_lw, color=main_color, zorder=4 if _is_pin else 3, alpha=_alpha)
                     _draw_spec_zones(ax, col_name)
                     color_idx += 1
 
@@ -6523,41 +7574,66 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             for ax in axes[:-1]:
                 for _lbl in ax.get_xticklabels(): _lbl.set_visible(False)
 
-            all_handles, all_labels = [], []
-            max_name_len = max(14, 32 - num_plots * 2)
+            _tk_legend_entries = []
+            _line_color_map = {}
             for ax, cat_name in zip(axes, active_cats):
                 h, lb = ax.get_legend_handles_labels()
-                if not h:
-                    continue
-                # category header as a blank patch with bold text
-                from matplotlib.patches import Patch
-                all_handles.append(Patch(color='none'))
-                all_labels.append(f"── {cat_name} ──")
+                if not h: continue
+                _tk_legend_entries.append((cat_name, None, None, True))
                 for handle, label in zip(h, lb):
-                    short = label.split('\n')[0]
-                    short = short[:max_name_len] + ('…' if len(short) > max_name_len else '')
-                    all_handles.append(handle)
-                    all_labels.append(f"  {short}")
-            leg = self.fig.legend(all_handles, all_labels,
-                                  loc='center left',
-                                  bbox_to_anchor=(0.82, 0.5),
-                                  fontsize=legend_fs, frameon=False,
-                                  handlelength=1.2, handletextpad=0.4,
-                                  labelspacing=0.25, ncol=1)
-            if leg:
-                header_color = '#aaaaaa' if self.is_dark else '#666666'
-                for t in leg.get_texts():
-                    txt = t.get_text()
-                    if txt.startswith('──'):
-                        t.set_color(header_color)
-                        t.set_fontweight('bold')
-                        t.set_fontsize(max(6, legend_fs - 1))
-                    else:
-                        t.set_color(text_color)
+                    parts = label.split('\n')
+                    col_name = parts[0].strip()
+                    try: lcolor = handle.get_color()
+                    except Exception: lcolor = '#888'
+                    try: lstyle = handle.get_linestyle()
+                    except Exception: lstyle = '-'
+                    stats_str = parts[1] if len(parts) > 1 and show_stats else ''
+                    full_lbl = col_name + ('\n' + stats_str if stats_str else '')
+                    _tk_legend_entries.append((full_lbl, lcolor, col_name, False, lstyle))
+            self._update_tk_legend(_tk_legend_entries)
+            all_labels = [e[0] for e in _tk_legend_entries]
+            eff_fs = legend_fs
+
+            if self.compare_mode and self.ref_df is not None:
+                diff_lines = []
+                for col_name in sel:
+                    if col_name not in self.ref_df.columns:
+                        continue
+                    cur = self.df[col_name].dropna()
+                    ref = self.ref_df[col_name].dropna()
+                    if cur.empty or ref.empty:
+                        continue
+                    d_avg = cur.mean() - ref.mean()
+                    d_max = cur.max()  - ref.max()
+                    d_min = cur.min()  - ref.min()
+                    short = col_name[:32] + ('…' if len(col_name) > 32 else '')
+                    def _fmt_d(v):
+                        sign = '+' if v >= 0 else ''
+                        return f"{sign}{v:.1f}"
+                    diff_lines.append(
+                        f"{short}\n"
+                        f"  avg {_fmt_d(d_avg)}  max {_fmt_d(d_max)}  min {_fmt_d(d_min)}"
+                    )
+                if diff_lines:
+                    panel_text = "Session vs Reference\n" + ("─" * 28) + "\n" + "\n".join(diff_lines)
+                    box_bg = '#1a1a1a' if is_dark else '#f0f4f8'
+                    self.fig.text(
+                        0.825, 0.02, panel_text,
+                        fontsize=7, color=text_color,
+                        va='bottom', ha='left',
+                        fontfamily='monospace',
+                        bbox=dict(boxstyle='round,pad=0.5',
+                                  facecolor=box_bg,
+                                  edgecolor='#444' if is_dark else '#ccc',
+                                  alpha=0.92),
+                        transform=self.fig.transFigure,
+                        clip_on=False,
+                        zorder=10
+                    )
 
         elif self.delta_mode and len(sel) >= 2:
             ax = self.fig.add_subplot(self._main_plot_gs if self._main_plot_gs is not None else 111)
-            ax.set_facecolor("#1e1e1e" if is_dark else "#fdfdfd")
+            ax.set_facecolor(bg2_color)
             s1, s2 = self.df[sel[0]], self.df[sel[1]]
             delta = (s1 - s2).abs()
 
@@ -6577,13 +7653,25 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             ax.grid(True, linestyle=':', alpha=0.4, color=grid_color)
             ax.tick_params(colors=text_color, labelsize=8)
             _fmt_xticks(ax)
-            l = ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), fontsize='x-small', frameon=False)
-            if l:
-                for t in l.get_texts():
-                    t.set_color(text_color)
+
+            _tk_delta = []
+            for line in ax.get_lines():
+                lbl = line.get_label()
+                if lbl.startswith('_'): continue
+                parts = lbl.split('\n')
+                col_name = parts[0].strip()
+                try: lcolor = line.get_color()
+                except Exception: lcolor = '#888'
+                try: lstyle = line.get_linestyle()
+                except Exception: lstyle = '-'
+                full_lbl = col_name + ('\n' + parts[1] if len(parts) > 1 else '')
+                _tk_delta.append((full_lbl, lcolor, col_name, False, lstyle))
+            self._update_tk_legend(_tk_delta)
+            all_labels = [e[0] for e in _tk_delta]
         else:
+            legend_fs = max(9, 10 - len(sel) // 6)
             ax = self.fig.add_subplot(self._main_plot_gs if self._main_plot_gs is not None else 111)
-            ax.set_facecolor("#1e1e1e" if is_dark else "#fdfdfd")
+            ax.set_facecolor(bg2_color)
             for i, col_name in enumerate(sel):
                 main_color = colors[i % len(colors)]
                 if self.compare_mode and self.ref_df is not None and col_name in self.ref_df.columns:
@@ -6593,18 +7681,73 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                             ls='--', lw=1, alpha=0.5, color=main_color, zorder=2,
                             label=f"REF: {col_name}\n{ref_stats}")
                 series = self.df[col_name].dropna()
-                stats = f"Min: {series.min():.1f}  Avg: {series.mean():.1f}  Max: {series.max():.1f}"
+                stats = f"▼{series.min():.1f}  ~{series.mean():.1f}  ▲{series.max():.1f}"
+                _pinned = getattr(self, '_pinned_line', None)
+                _is_pin = (_pinned == col_name)
+                _alpha  = 1.0 if (_pinned is None or _is_pin) else 0.25
+                _lw     = 2.5 if _is_pin else 1.5
                 ax.plot(x_vals, self.df[col_name], label=f"{col_name}\n{stats}",
-                        lw=1.5, color=main_color, zorder=3)
+                        lw=_lw, color=main_color, zorder=4 if _is_pin else 3, alpha=_alpha)
                 _draw_spec_zones(ax, col_name)
 
             ax.grid(True, linestyle=':', alpha=0.4, color=grid_color)
             ax.tick_params(colors=text_color, labelsize=8)
             _fmt_xticks(ax)
-            l = ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), fontsize='x-small', frameon=False)
-            if l:
-                for t in l.get_texts():
-                    t.set_color(text_color)
+
+            _tk_single_entries = []
+            for line in ax.get_lines():
+                lbl = line.get_label()
+                if lbl.startswith('_'): continue
+                parts = lbl.split('\n')
+                col_name = parts[0].strip()
+                stats_str = parts[1] if len(parts) > 1 else ''
+                try: lcolor = line.get_color()
+                except Exception: lcolor = '#888'
+                try: lstyle = line.get_linestyle()
+                except Exception: lstyle = '-'
+                full_lbl = col_name + ('\n' + stats_str if stats_str else '')
+                _tk_single_entries.append((full_lbl, lcolor, col_name, False, lstyle))
+            self._update_tk_legend(_tk_single_entries)
+            all_labels = [e[0] for e in _tk_single_entries]
+
+            if self.compare_mode and self.ref_df is not None:
+                diff_lines = []
+                for col_name in sel:
+                    if col_name not in self.ref_df.columns:
+                        continue
+                    cur  = self.df[col_name].dropna()
+                    ref  = self.ref_df[col_name].dropna()
+                    if cur.empty or ref.empty:
+                        continue
+                    d_avg = cur.mean() - ref.mean()
+                    d_max = cur.max()  - ref.max()
+                    d_min = cur.min()  - ref.min()
+                    short = col_name[:32] + ('…' if len(col_name) > 32 else '')
+                    def _fmt_d(v):
+                        sign = '+' if v >= 0 else ''
+                        return f"{sign}{v:.1f}"
+                    diff_lines.append(
+                        f"{short}\n  avg {_fmt_d(d_avg)}  max {_fmt_d(d_max)}  min {_fmt_d(d_min)}"
+                    )
+                if diff_lines:
+                    panel_text = "Session vs Reference\n" + ("─" * 28) + "\n" + "\n".join(diff_lines)
+                    muted = '#888888'
+                    pos_col  = '#4caf50' if is_dark else '#2e7d32'
+                    neg_col  = '#ef5350' if is_dark else '#c62828'
+                    box_bg   = '#1a1a1a' if is_dark else '#f0f4f8'
+                    self.fig.text(
+                        0.825, 0.02, panel_text,
+                        fontsize=7, color=text_color,
+                        va='bottom', ha='left',
+                        fontfamily='monospace',
+                        bbox=dict(boxstyle='round,pad=0.5',
+                                  facecolor=box_bg,
+                                  edgecolor='#444' if is_dark else '#ccc',
+                                  alpha=0.92),
+                        transform=self.fig.transFigure,
+                        clip_on=False,
+                        zorder=10
+                    )
 
         if self._sig_timeline_ax is not None and hits:
             self._draw_sig_timeline(self._sig_timeline_ax, x_vals, hits)
@@ -6623,9 +7766,9 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         except Exception:
             pass
         if self.multi_mode:
-            self.fig.subplots_adjust(right=0.80, hspace=getattr(self, '_last_multi_hspace', 0.3))
+            self.fig.subplots_adjust(left=0.12, right=0.98, hspace=getattr(self, '_last_multi_hspace', 0.3))
         else:
-            self.fig.subplots_adjust(right=0.82)
+            self.fig.subplots_adjust(left=0.10, right=0.98)
         self.canvas_widget.draw_idle()
 
 if __name__ == "__main__":
@@ -6640,28 +7783,30 @@ if __name__ == "__main__":
         splash.title("RESYNC.ERR")
         splash.resizable(False, False)
         splash.protocol("WM_DELETE_WINDOW", lambda: None)
-        splash.configure(bg="#121212")
+        _st = load_theme(); _sa = _st.get("active","Dark (Default)"); _su = _st.get("user_themes",{}); _sc = _su.get(_sa, _DEFAULT_DARK_THEME if "Light" not in _sa else _DEFAULT_LIGHT_THEME)
+        _sbg = _sc.get("bg","#121212"); _sfg = _sc.get("fg","#e0e0e0"); _sacc = _sc.get("accent","#1f6aa5")
+        splash.configure(bg=_sbg)
         splash.geometry("340x120")
         splash.grab_set()
 
         outer = tk.Frame(splash, bg="#1f6aa5", padx=2, pady=2)
         outer.pack(fill=tk.BOTH, expand=True)
-        inner = tk.Frame(outer, bg="#121212", padx=20, pady=16)
+        inner = tk.Frame(outer, bg=_sbg, padx=20, pady=16)
         inner.pack(fill=tk.BOTH, expand=True)
 
-        title_row = tk.Frame(inner, bg="#121212")
+        title_row = tk.Frame(inner, bg=_sbg)
         title_row.pack(anchor='w')
         tk.Label(title_row, text="📂  Loading CSV",
-                 font=('Segoe UI', 11, 'bold'), bg="#121212", fg="#4f8ef7").pack(side=tk.LEFT)
+                 font=('Segoe UI', 11, 'bold'), bg=_sbg, fg=_sacc).pack(side=tk.LEFT)
         spin_var = tk.StringVar(value=" ⠋")
         tk.Label(title_row, textvariable=spin_var,
-                 font=('Segoe UI', 11), bg="#121212", fg="#1f6aa5").pack(side=tk.LEFT, padx=(6, 0))
+                 font=('Segoe UI', 11), bg=_sbg, fg=_sacc).pack(side=tk.LEFT, padx=(6, 0))
 
         fname = path.replace('\\', '/').split('/')[-1]
         tk.Label(inner, text=fname, font=('Segoe UI', 9),
-                 bg="#121212", fg="#888", anchor='w').pack(fill=tk.X, pady=(6, 0))
+                 bg=_sbg, fg=_sfg, anchor='w').pack(fill=tk.X, pady=(6, 0))
 
-        bar_frame = tk.Frame(inner, bg="#121212")
+        bar_frame = tk.Frame(inner, bg=_sbg)
         bar_frame.pack(fill=tk.X, pady=(8, 0))
         bar_bg = tk.Frame(bar_frame, bg="#2a2a2a", height=4, bd=0)
         bar_bg.pack(fill=tk.X)

@@ -154,6 +154,7 @@
             }
         },
         "disabled_sigs": [],
-        "sig_timeline_enabled": true
+        "sig_timeline_enabled": false,
+        "tooltip_enabled": false
     }
 }
