@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import List, Optional, Dict, Set, Tuple
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
-import psutil as _psutil
 import numpy as np
 import csv
 import json
@@ -217,7 +216,7 @@ def save_theme(theme: dict):
             json.dump(theme, f, indent=4)
     except Exception:
         pass
-CURRENT_VERSION = "1.5.2"
+CURRENT_VERSION = "1.5.3"
 GITHUB_REPO = "ERRORX2/HD2-LOG-VIEWER"
 
 def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delta_mode: bool = False,
@@ -687,6 +686,8 @@ class TelemetryApp:
         self.root = root
         self.analyzer = analyzer
         self.df = analyzer.df
+        self._x_axis_cache = None
+        self._sensor_stats_cache = {}
 
         self.ref_df = None
         self.ref_analyzer = None
@@ -1368,6 +1369,7 @@ class TelemetryApp:
         self._save_config()
 
     def _toggle_time(self):
+        self._invalidate_x_cache()
         if not self.analyzer.time_col:
             self.show_toast("No time column detected in this CSV")
             return
@@ -1573,14 +1575,25 @@ class TelemetryApp:
         return None
 
     def _get_x_axis(self):
-        """Returns (x_values, x_labels, use_time) for plotting and tooltip use."""
+        """Returns (x_values, x_labels, use_time) - cached until CSV or time_mode changes."""
+        cached = getattr(self, '_x_axis_cache', None)
+        if cached is not None:
+            return cached
         if self.time_mode and self.analyzer.time_series is not None:
             ts = self.analyzer.time_series
             if len(ts) != len(self.df):
-                return self.df.index.values, None, False
-            x_vals = ts.dt.total_seconds().values
-            return x_vals, ts, True
-        return self.df.index.values, None, False
+                result = (self.df.index.values, None, False)
+            else:
+                x_vals = ts.dt.total_seconds().values
+                result = (x_vals, ts, True)
+        else:
+            result = (self.df.index.values, None, False)
+        self._x_axis_cache = result
+        return result
+
+    def _invalidate_x_cache(self):
+        self._x_axis_cache = None
+        self._sensor_stats_cache = {}
 
     def _format_elapsed(self, seconds: float) -> str:
         """Format elapsed seconds as H:MM:SS."""
@@ -5196,8 +5209,8 @@ class TelemetryApp:
 <title>RESYNC.ERR Session Report \u2014 {csv_name}</title>
 <style>
 :root{{--bg:#0d0d1a;--bg2:#13132b;--bg3:#1a1a38;--accent:#4f8ef7;--accent2:#a78bfa;
-      --text:
-      --info:
+      --text:#e2e8f0;--muted:#64748b;--border:#1e1e3a;--radius:8px;
+      --crit:#ef4444;--warn:#f59e0b;--good:#22c55e;--info:#3b82f6;}}
 *{{box-sizing:border-box;margin:0;padding:0;}}
 body{{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.6;}}
 .page-wrap{{max-width:1300px;margin:0 auto;padding:32px 24px;}}
@@ -6499,6 +6512,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                 setattr(self, attr, None)
 
     def _apply_new_csv(self, new_analyzer):
+        self._invalidate_x_cache()
         """Called on the main thread once a new CSV has loaded successfully."""
         self._teardown()
         self.analyzer = new_analyzer
@@ -7461,14 +7475,14 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         if getattr(self, '_pinned_line', None) not in sel:
             self._pinned_line = None
 
-        self._sensor_stats_cache = {
-            c: (float(self.df[c].min()), float(self.df[c].max()))
-            for c in sel if c in self.df.columns
-        }
+        if not getattr(self, '_sensor_stats_cache', {}):
+            self._sensor_stats_cache = {
+                c: (float(self.df[c].min()), float(self.df[c].max()))
+                for c in self.df.columns if self.df[c].dtype.kind in 'f i'
+            }
 
-        _hc = self._get_theme()
-        self._hover_fc = _hc["bg2"]
-        self._hover_tc = _hc["fg"]
+        self._hover_fc = _t["bg2"]
+        self._hover_tc = _t["fg"]
         self._hover_cursor_color = 'white' if self.is_dark else 'gray'
 
         if self.heatmap_mode:
