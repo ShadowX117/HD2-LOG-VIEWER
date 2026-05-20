@@ -216,7 +216,7 @@ def save_theme(theme: dict):
             json.dump(theme, f, indent=4)
     except Exception:
         pass
-CURRENT_VERSION = "1.5.5"
+CURRENT_VERSION = "1.5.1"
 GITHUB_REPO = "ERRORX2/HD2-LOG-VIEWER"
 
 def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delta_mode: bool = False,
@@ -2138,7 +2138,7 @@ class TelemetryApp:
         wl(f"  Disabled  : {sorted(self.disabled_sigs) or 'none'}", 'header')
         wl('=' * 72, 'header')
 
-        cpu_temp      = self._col('TCTL') or self._col('TDIE') or self._col_excl(['CPU'], excl=['USAGE','UTIL','LOAD','THREAD','W]','%]','MHz','RPM','ms'])
+        cpu_temp      = self._col('TCTL') or self._col('TDIE') or self._col_excl(['CPU'], excl=['USAGE','UTIL','LOAD','THREAD','W]','%]','MHz','RPM'])
         cpu_clock     = self._col('KERN', 'TAKT') or self._col('CORE', 'CLOCK') or self._col('CLOCK')
         cpu_usage_col = self._col_excl(['CPU','USAGE'], excl=['°C','TEMP','W]']) or self._col_excl(['CPU','UTIL'], excl=['°C','TEMP','W]']) or self._col_excl(['CPU','LOAD'], excl=['°C','TEMP','W]']) or self._col('TOTAL', 'CPU')
         cpu_power     = self._col_excl(['CPU','PACKAGE','W'], excl=['°C','TEMP','USAGE','LOAD','%']) or self._col_excl(['CPU','PPT'], excl=['°C','TEMP']) or self._col_excl(['CPU','POWER'], excl=['°C','TEMP'])
@@ -2759,7 +2759,7 @@ class TelemetryApp:
             return next((c for c in candidates
                          if c and c in df.columns), None)
 
-        cpu_temp      = _a('cpu_temp') or self._col('TCTL') or self._col('TDIE') or self._col('PROZESSOR', 'TEMPERATUR') or self._col('TEMPERATUR') or self._col_excl(['CPU'], excl=['USAGE','UTIL','LOAD','THREAD','W]','%]','MHz','RPM','ms'])
+        cpu_temp      = _a('cpu_temp') or self._col('TCTL') or self._col('TDIE') or self._col('PROZESSOR', 'TEMPERATUR') or self._col('TEMPERATUR') or self._col_excl(['CPU'], excl=['USAGE','UTIL','LOAD','THREAD','W]','%]','MHz','RPM'])
         cpu_clock     = self._col('KERN', 'TAKT') or self._col('CORE', 'CLOCK') or self._col('CLOCK')
         cpu_usage_col = _a('cpu_usage') or self._col('CPU', 'AUSLASTUNG') or self._col_excl(['CPU','USAGE'], excl=['°C','TEMP','W]']) or self._col_excl(['CPU','UTIL'], excl=['°C','TEMP','W]']) or self._col_excl(['CPU','LOAD'], excl=['°C','TEMP','W]']) or self._col('PROZESSOR') or self._col('TOTAL', 'CPU')
         cpu_power     = _a('cpu_power') or self._col('CPU-Gesamt-Leistungsaufnahme') or self._col_excl(['CPU','PACKAGE','W'], excl=['°C','TEMP','USAGE','LOAD','%']) or self._col_excl(['CPU','PPT'], excl=['°C','TEMP']) or self._col_excl(['CPU','POWER'], excl=['°C','TEMP']) or self._col('CPU Package Power')
@@ -5903,6 +5903,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
 
         self.root.bind("<Control-F8>", lambda e: self._toggle_debug())
         self.root.bind("<Control-c>", lambda e: self._copy_png_to_clipboard())
+        self.root.bind("<Control-h>", lambda e: self._launch_stratagem_hero())
 
         self.paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         self.paned.pack(fill=tk.BOTH, expand=True)
@@ -6645,20 +6646,64 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             v.set(False)
         self.update_plot()
 
+    def _render_composite_png(self, dpi=150):
+        import io
+        from PIL import Image, ImageGrab
+
+        buf = io.BytesIO()
+        self.fig.savefig(buf, format='png', dpi=dpi,
+                         bbox_inches='tight',
+                         facecolor=self.fig.get_facecolor())
+        buf.seek(0)
+        fig_img = Image.open(buf).convert('RGB')
+
+        legend_img = None
+        try:
+            panel = self._legend_panel
+            panel.update_idletasks()
+            x = panel.winfo_rootx()
+            y = panel.winfo_rooty()
+            w = panel.winfo_width()
+            h = panel.winfo_height()
+            if w > 10 and h > 10:
+                legend_img = ImageGrab.grab(bbox=(x, y, x + w, y + h)).convert('RGB')
+                legend_img = legend_img.resize(
+                    (int(legend_img.width * dpi / 96),
+                     int(legend_img.height * dpi / 96)),
+                    Image.LANCZOS)
+        except Exception:
+            legend_img = None
+
+        if legend_img is None:
+            return fig_img
+
+        total_w = fig_img.width + legend_img.width
+        total_h = max(fig_img.height, legend_img.height)
+        bg_col = tuple(int(self.fig.get_facecolor()[i] * 255) for i in range(3))
+        composite = Image.new('RGB', (total_w, total_h), bg_col)
+        composite.paste(fig_img, (0, 0))
+        composite.paste(legend_img, (fig_img.width, 0))
+        return composite
+
     def _export(self):
         f = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG", "*.png")])
         if f:
-            self.fig.savefig(f, dpi=300, bbox_inches='tight', facecolor=self.fig.get_facecolor())
+            try:
+                from PIL import Image
+                img = self._render_composite_png(dpi=300)
+                img.save(f)
+            except ImportError:
+                self.fig.savefig(f, dpi=300, bbox_inches='tight',
+                                 facecolor=self.fig.get_facecolor())
 
     def _copy_png_to_clipboard(self):
         try:
             import io, sys, ctypes
             from PIL import Image
 
+            img = self._render_composite_png(dpi=150)
             buf = io.BytesIO()
-            self.fig.savefig(buf, format='png', dpi=150,
-                             bbox_inches='tight',
-                             facecolor=self.fig.get_facecolor())
+            img.save(buf, format='PNG')
             buf.seek(0)
 
             if sys.platform == 'win32':
@@ -6675,6 +6720,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                 img = Image.open(buf).convert('RGB')
                 output = io.BytesIO()
                 img.save(output, 'BMP')
+
                 data = output.getvalue()[14:]
 
                 u32.OpenClipboard(0)
@@ -7467,6 +7513,258 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
 
         self.update_plot()
         self.show_toast(f"{hit['severity']}: {hit['name']}")
+
+    def _launch_stratagem_hero(self):
+
+        active_theme = self.custom_theme.get("active", "")
+        if active_theme != "Helldivers 2":
+            return
+
+        STRATAGEMS = [
+            ("Reinforce",               ["Up", "Down", "Right", "Left", "Up"]),
+            ("SOS Beacon",              ["Up", "Down", "Right", "Up"]),
+            ("Resupply",                ["Down", "Down", "Up", "Right"]),
+            ("Eagle Airstrike",         ["Up", "Right", "Right"]),
+            ("Eagle Cluster Bomb",      ["Up", "Right", "Down", "Down", "Right"]),
+            ("Eagle Napalm Airstrike",  ["Up", "Right", "Down", "Right"]),
+            ("Eagle 500KG Bomb",        ["Up", "Right", "Down", "Down", "Down"]),
+            ("Eagle Strafing Run",      ["Up", "Right", "Right", "Down"]),
+            ("Eagle Smoke Strike",      ["Up", "Right", "Up", "Down"]),
+            ("Eagle Rearm",             ["Up", "Up", "Left", "Up", "Right"]),
+            ("Orbital Gatling Barrage", ["Right", "Down", "Left", "Up", "Up"]),
+            ("Orbital Airburst Strike", ["Right", "Right", "Right"]),
+            ("Orbital Laser",           ["Right", "Down", "Up", "Right", "Down"]),
+            ("Orbital Railcannon",      ["Right", "Up", "Down", "Down", "Right"]),
+            ("Orbital Precision Strike",["Right", "Right", "Up"]),
+            ("Orbital Gas Strike",      ["Right", "Right", "Down", "Right"]),
+            ("Orbital EMS Strike",      ["Right", "Right", "Left", "Down"]),
+            ("Orbital Walking Barrage", ["Right", "Down", "Right", "Down", "Right", "Down"]),
+            ("Orbital 380MM Barrage",   ["Right", "Down", "Up", "Up", "Left", "Down", "Down"]),
+            ("Orbital 120MM Barrage",   ["Right", "Right", "Down", "Left", "Right", "Down"]),
+            ("Shield Generator Relay",  ["Down", "Down", "Left", "Right", "Left"]),
+            ("Tesla Tower",             ["Down", "Right", "Up", "Left", "Down", "Right"]),
+            ("Machine Gun Sentry",      ["Down", "Up", "Right", "Right", "Up"]),
+            ("Gatling Sentry",          ["Down", "Up", "Left", "Up"]),
+            ("Mortar Sentry",           ["Down", "Up", "Right", "Down"]),
+            ("EMS Mortar Sentry",       ["Down", "Down", "Up", "Up", "Left"]),
+            ("Autocannon Sentry",       ["Down", "Up", "Right", "Up", "Left", "Up"]),
+            ("Rocket Sentry",           ["Down", "Up", "Left", "Right"]),
+            ("Guard Dog Rover",         ["Down", "Up", "Left", "Up", "Right", "Right"]),
+            ("Supply Pack",             ["Down", "Left", "Down", "Up", "Up", "Down"]),
+            ("Jump Pack",               ["Down", "Up", "Up", "Down", "Up"]),
+            ("Shield Generator Pack",   ["Down", "Up", "Left", "Right", "Down", "Up", "Left"]),
+            ("Anti-Tank Mines",         ["Down", "Left", "Up", "Up"]),
+            ("Incendiary Mines",        ["Down", "Left", "Left", "Down"]),
+            ("Hellbomb",                ["Down", "Up", "Left", "Down", "Up", "Right", "Down", "Up"]),
+            ("SEAF Artillery",          ["Right", "Up", "Up", "Down"]),
+            ("Machine Gun",             ["Down", "Left", "Down", "Up", "Right"]),
+            ("Autocannon",              ["Down", "Left", "Down", "Up", "Up", "Right"]),
+            ("Recoilless Rifle",        ["Down", "Left", "Right", "Right", "Left"]),
+            ("Expendable Anti-Tank",    ["Down", "Down", "Left", "Up", "Right"]),
+            ("Spear",                   ["Down", "Down", "Up", "Down", "Down"]),
+            ("Railgun",                 ["Right", "Down", "Left", "Up", "Up", "Right"]),
+            ("Flamethrower",            ["Down", "Left", "Up", "Down", "Up"]),
+            ("Stalwart",                ["Down", "Left", "Down", "Up", "Up", "Left"]),
+            ("Laser Cannon",            ["Down", "Left", "Down", "Up", "Left"]),
+            ("Arc Thrower",             ["Down", "Right", "Down", "Up", "Left", "Left"]),
+            ("Quasar Cannon",           ["Down", "Down", "Up", "Left", "Right"]),
+            ("Anti-Materiel Rifle",     ["Down", "Left", "Right", "Up", "Down"]),
+        ]
+
+        import random
+        import time as _time
+        import matplotlib.patches as _mpatches
+
+        _t      = self._get_theme()
+        bg      = _t["bg"]
+        fg      = _t["fg"]
+        accent  = _t["accent"]
+
+        ARROW_DISPLAY = {"Up": "▲", "Down": "▼", "Left": "◄", "Right": "►"}
+        GAME_DURATION = 45
+        POINTS_PER_CORRECT = 100
+
+        state = {
+            "active":      True,
+            "score":       0,
+            "streak":      0,
+            "best_streak": 0,
+            "start_time":  _time.time(),
+            "current":     None,
+            "progress":    0,
+            "flash":       None,
+            "flash_until": 0.0,
+            "done":        False,
+        }
+
+        self.fig.clear()
+        ax = self.fig.add_subplot(111)
+        ax.set_facecolor(bg)
+        self.fig.patch.set_facecolor(bg)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.axis("off")
+
+        def _next_stratagem():
+            pool = [s for s in STRATAGEMS if s is not state["current"]]
+            state["current"]  = random.choice(pool)
+            state["progress"] = 0
+
+        _next_stratagem()
+
+        def _redraw():
+            ax.clear()
+            ax.set_facecolor(bg)
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
+            ax.axis("off")
+
+            now       = _time.time()
+            elapsed   = now - state["start_time"]
+            remaining = max(0.0, GAME_DURATION - elapsed)
+            frac      = remaining / GAME_DURATION
+
+            if state["done"]:
+                ax.text(0.5, 0.65, "MISSION COMPLETE", ha="center", va="center",
+                        fontsize=22, fontweight="bold", color="#f0c030",
+                        transform=ax.transAxes)
+                ax.text(0.5, 0.50, f"SCORE:  {state['score']}",
+                        ha="center", va="center", fontsize=18, color=fg,
+                        transform=ax.transAxes)
+                ax.text(0.5, 0.38, f"Best Streak: {state['best_streak']}x",
+                        ha="center", va="center", fontsize=12, color=accent,
+                        transform=ax.transAxes)
+                ax.text(0.5, 0.22, "Ctrl+H to play again   |   Esc to return to plot",
+                        ha="center", va="center", fontsize=9, color="#888",
+                        transform=ax.transAxes)
+                self.canvas_widget.draw_idle()
+                return
+
+            name, seq = state["current"]
+            prog      = state["progress"]
+            flash     = state["flash"] if now < state["flash_until"] else None
+
+            ax.text(0.5, 0.94, "STRATAGEM HERO",
+                    ha="center", va="top", fontsize=16, fontweight="bold",
+                    color="#f0c030", transform=ax.transAxes)
+
+            bx, by, bw, bh = 0.10, 0.86, 0.80, 0.025
+            ax.add_patch(_mpatches.FancyBboxPatch(
+                (bx, by), bw, bh, boxstyle="round,pad=0.005",
+                facecolor="#2a2a2a", edgecolor="#555", linewidth=1,
+                transform=ax.transAxes, zorder=2))
+            bar_color = "#4caf50" if frac > 0.40 else "#f0c030" if frac > 0.20 else "#e74c3c"
+            if frac > 0:
+                ax.add_patch(_mpatches.FancyBboxPatch(
+                    (bx, by), bw * frac, bh, boxstyle="round,pad=0.005",
+                    facecolor=bar_color, edgecolor="none",
+                    transform=ax.transAxes, zorder=3))
+            ax.text(bx + bw + 0.02, by + bh / 2, f"{remaining:.1f}s",
+                    ha="left", va="center", fontsize=9, color=fg,
+                    transform=ax.transAxes)
+
+            ax.text(0.01, 0.97, f"Score: {state['score']}",
+                    ha="left", va="top", fontsize=10, color=fg,
+                    transform=ax.transAxes)
+            if state["streak"] >= 2:
+                ax.text(0.99, 0.97, f"{state['streak']}x streak",
+                        ha="right", va="top", fontsize=10, color="#f0c030",
+                        transform=ax.transAxes)
+
+            name_color = "#4caf50" if flash == "good" else "#e74c3c" if flash == "bad" else fg
+            ax.text(0.5, 0.72, name,
+                    ha="center", va="center", fontsize=15, fontweight="bold",
+                    color=name_color, transform=ax.transAxes)
+
+            n       = len(seq)
+            spacing = min(0.09, 0.70 / max(n, 1))
+            start_x = 0.5 - spacing * (n - 1) / 2
+            for i, arrow in enumerate(seq):
+                x = start_x + i * spacing
+                col = "#4caf50" if i < prog else "#f0c030" if i == prog else "#555555"
+                ax.text(x, 0.55, ARROW_DISPLAY.get(arrow, "?"),
+                        ha="center", va="center",
+                        fontsize=max(14, 22 - n),
+                        color=col, fontweight="bold",
+                        transform=ax.transAxes)
+
+            if prog < n:
+                ax.text(0.5, 0.42, f"Press  {ARROW_DISPLAY[seq[prog]]}",
+                        ha="center", va="center", fontsize=11, color="#888",
+                        transform=ax.transAxes)
+
+            ax.text(0.5, 0.04, "Esc — quit",
+                    ha="center", va="bottom", fontsize=8, color="#555",
+                    transform=ax.transAxes)
+
+            self.canvas_widget.draw_idle()
+
+        def _tick():
+            if not state["active"]:
+                return
+            if _time.time() - state["start_time"] >= GAME_DURATION and not state["done"]:
+                state["done"] = True
+                _redraw()
+                return
+            _redraw()
+            self.root.after(100, _tick)
+
+        def _on_key(event):
+            if not state["active"]:
+                return
+            key = event.keysym
+
+            if key == "Escape":
+                _quit()
+                return
+
+            if state["done"]:
+                if key == "Escape":
+                    _quit()
+                return
+
+            if key not in ("Up", "Down", "Left", "Right"):
+                return
+
+            name, seq = state["current"]
+            prog      = state["progress"]
+
+            if key == seq[prog]:
+                state["progress"] += 1
+                if state["progress"] == len(seq):
+                    state["streak"] += 1
+                    state["best_streak"] = max(state["best_streak"], state["streak"])
+                    bonus = max(1, state["streak"])
+                    state["score"]       += POINTS_PER_CORRECT * bonus
+                    state["flash"]        = "good"
+                    state["flash_until"]  = _time.time() + 0.35
+                    _next_stratagem()
+                else:
+                    state["flash"] = None
+            else:
+                state["progress"]    = 0
+                state["streak"]      = 0
+                state["flash"]       = "bad"
+                state["flash_until"] = _time.time() + 0.25
+
+            _redraw()
+
+        def _quit():
+            state["active"] = False
+            for k in _key_binds:
+                try:
+                    self.root.unbind(k)
+                except Exception:
+                    pass
+            self.root.bind("<Control-h>", lambda e: self._launch_stratagem_hero())
+            self.update_plot()
+
+        _key_binds = ["<Up>", "<Down>", "<Left>", "<Right>", "<Escape>"]
+        for k in _key_binds:
+            self.root.bind(k, _on_key)
+
+        _redraw()
+        _tick()
 
     def update_plot(self):
         self.fig.clear()
