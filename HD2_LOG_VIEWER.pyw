@@ -216,7 +216,7 @@ def save_theme(theme: dict):
             json.dump(theme, f, indent=4)
     except Exception:
         pass
-CURRENT_VERSION = "1.5.4"
+CURRENT_VERSION = "1.5.5"
 GITHUB_REPO = "ERRORX2/HD2-LOG-VIEWER"
 
 def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delta_mode: bool = False,
@@ -2138,10 +2138,10 @@ class TelemetryApp:
         wl(f"  Disabled  : {sorted(self.disabled_sigs) or 'none'}", 'header')
         wl('=' * 72, 'header')
 
-        cpu_temp      = self._col('TCTL') or self._col('TDIE') or self._col('CPU')
+        cpu_temp      = self._col('TCTL') or self._col('TDIE') or self._col_excl(['CPU'], excl=['USAGE','UTIL','LOAD','THREAD','W]','%]','MHz','RPM','ms'])
         cpu_clock     = self._col('KERN', 'TAKT') or self._col('CORE', 'CLOCK') or self._col('CLOCK')
-        cpu_usage_col = self._col('CPU', 'USAGE') or self._col('CPU', 'UTIL') or self._col('CPU', 'LOAD') or self._col('TOTAL', 'CPU')
-        cpu_power     = self._col('CPU', 'PACKAGE') or self._col('CPU', 'PPT') or self._col('CPU', 'POWER')
+        cpu_usage_col = self._col_excl(['CPU','USAGE'], excl=['°C','TEMP','W]']) or self._col_excl(['CPU','UTIL'], excl=['°C','TEMP','W]']) or self._col_excl(['CPU','LOAD'], excl=['°C','TEMP','W]']) or self._col('TOTAL', 'CPU')
+        cpu_power     = self._col_excl(['CPU','PACKAGE','W'], excl=['°C','TEMP','USAGE','LOAD','%']) or self._col_excl(['CPU','PPT'], excl=['°C','TEMP']) or self._col_excl(['CPU','POWER'], excl=['°C','TEMP'])
         throttle      = self._col('THROTTLE') or self._col('PROCHOT')
 
         section("CPU COLUMNS")
@@ -2759,10 +2759,10 @@ class TelemetryApp:
             return next((c for c in candidates
                          if c and c in df.columns), None)
 
-        cpu_temp      = _a('cpu_temp') or self._col('TCTL') or self._col('TDIE') or self._col('PROZESSOR', 'TEMPERATUR') or self._col('TEMPERATUR') or self._col('CPU')
+        cpu_temp      = _a('cpu_temp') or self._col('TCTL') or self._col('TDIE') or self._col('PROZESSOR', 'TEMPERATUR') or self._col('TEMPERATUR') or self._col_excl(['CPU'], excl=['USAGE','UTIL','LOAD','THREAD','W]','%]','MHz','RPM','ms'])
         cpu_clock     = self._col('KERN', 'TAKT') or self._col('CORE', 'CLOCK') or self._col('CLOCK')
-        cpu_usage_col = _a('cpu_usage') or self._col('CPU', 'AUSLASTUNG') or self._col('CPU', 'USAGE') or self._col('CPU', 'UTIL') or self._col('CPU', 'LOAD') or self._col('PROZESSOR') or self._col('TOTAL', 'CPU')
-        cpu_power     = _a('cpu_power') or self._col('CPU-Gesamt-Leistungsaufnahme') or self._col('CPU', 'PACKAGE') or self._col('CPU', 'PPT') or self._col('CPU', 'POWER') or self._col('CPU Package Power')
+        cpu_usage_col = _a('cpu_usage') or self._col('CPU', 'AUSLASTUNG') or self._col_excl(['CPU','USAGE'], excl=['°C','TEMP','W]']) or self._col_excl(['CPU','UTIL'], excl=['°C','TEMP','W]']) or self._col_excl(['CPU','LOAD'], excl=['°C','TEMP','W]']) or self._col('PROZESSOR') or self._col('TOTAL', 'CPU')
+        cpu_power     = _a('cpu_power') or self._col('CPU-Gesamt-Leistungsaufnahme') or self._col_excl(['CPU','PACKAGE','W'], excl=['°C','TEMP','USAGE','LOAD','%']) or self._col_excl(['CPU','PPT'], excl=['°C','TEMP']) or self._col_excl(['CPU','POWER'], excl=['°C','TEMP']) or self._col('CPU Package Power')
         throttle      = self._col('THROTTLE') or self._col('PROCHOT')
         cpu_utility   = self._col('CPU USAGE') or self._col('CPU UTILIZATION') or self._col('CPU AUSLASTUNG') or self._col('TOTAL CPU USAGE')
 
@@ -2808,10 +2808,15 @@ class TelemetryApp:
             warn_threshold = limit * 0.85
             crit_threshold = limit * 0.92
 
-            is_critical = self._sustained(cpu_temp, crit_threshold,
+            peak_temp   = mx(cpu_temp)
+            is_critical = peak_temp >= crit_threshold and self._sustained(cpu_temp, crit_threshold,
                                           n_samples=self.sig_cpu_thermal_samples)
-            is_warning  = self._sustained(cpu_temp, warn_threshold,
+            is_warning  = peak_temp >= warn_threshold and self._sustained(cpu_temp, warn_threshold,
                                           n_samples=self.sig_cpu_thermal_samples)
+            if not is_critical and peak_temp >= limit:
+                is_critical = True
+            elif not is_warning and peak_temp >= warn_threshold:
+                is_warning = True
 
             if is_critical or is_warning:
                 thr_active = throttle and mx(throttle) >= 1.0
