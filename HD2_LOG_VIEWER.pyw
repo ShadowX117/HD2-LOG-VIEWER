@@ -216,7 +216,7 @@ def save_theme(theme: dict):
             json.dump(theme, f, indent=4)
     except Exception:
         pass
-CURRENT_VERSION = "1.5.6"
+CURRENT_VERSION = "1.5.7"
 GITHUB_REPO = "ERRORX2/HD2-LOG-VIEWER"
 
 def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delta_mode: bool = False,
@@ -5875,7 +5875,31 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                     ttk.Button(card, text="📌 Select Relevant Sensors",
                                command=_make_select(r['name'])).pack(anchor='w', pady=(6, 0))
 
-            ttk.Button(dialog, text="Close", command=dialog.destroy).pack(pady=10)
+            btn_row = tk.Frame(dialog, bg=bg)
+            btn_row.pack(pady=10)
+
+            def _copy_discord_summary():
+                if not results:
+                    summary = "✅ No issues detected — log looks clean."
+                else:
+                    SEV_EMOJI = {'CRITICAL': '🔴', 'WARNING': '🟡', 'INFO': '🔵'}
+                    lines = []
+                    for r in results:
+                        emoji = SEV_EMOJI.get(r['severity'], '⚪')
+                        name  = r['name']
+                        line  = f"{emoji} **{name}**"
+                        for ev in r.get('evidence') or []:
+                            if ev:
+                                line += f"\n  • {ev}"
+                        lines.append(line)
+                    summary = narrative_text + "\n\n" + "\n\n".join(lines)
+                dialog.clipboard_clear()
+                dialog.clipboard_append(summary)
+                self.show_toast("Discord summary copied to clipboard")
+
+            ttk.Button(btn_row, text="📋 Copy Discord Summary",
+                       command=_copy_discord_summary).pack(side=tk.LEFT, padx=(0, 6))
+            ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side=tk.LEFT)
 
         if self._sig_hits and not self._sig_dirty:
             _show(self._sig_hits)
