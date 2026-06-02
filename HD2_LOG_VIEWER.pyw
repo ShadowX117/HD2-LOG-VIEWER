@@ -5323,6 +5323,12 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         """Display signature analysis results. Uses cached results from the
         background watcher if fresh, otherwise runs a quick re-evaluation."""
 
+        if hasattr(self, '_diag_window') and self._diag_window and self._diag_window.winfo_exists():
+            self._diag_window.deiconify()
+            self._diag_window.lift()
+            self._diag_window.focus_force()
+            return
+
         def _show(results):
             is_dark = self.is_dark
             _t = self._get_theme(); bg = _t["bg"]; fg = _t["fg"]; accent = _t["accent"]; bg3 = _t["bg3"]
@@ -5332,8 +5338,10 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             dialog.title("Hardware Failure Diagnosis")
             dialog.geometry("680x620")
             dialog.minsize(520, 400)
-            dialog.grab_set()
+            dialog.resizable(True, True)
             dialog.configure(bg=bg)
+            self._diag_window = dialog
+            dialog.protocol("WM_DELETE_WINDOW", lambda: (setattr(self, '_diag_window', None), dialog.destroy()))
 
             self.root.update_idletasks()
             x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 340
@@ -5899,7 +5907,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
 
             ttk.Button(btn_row, text="📋 Copy Discord Summary",
                        command=_copy_discord_summary).pack(side=tk.LEFT, padx=(0, 6))
-            ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side=tk.LEFT)
+            ttk.Button(btn_row, text="Close", command=lambda: (setattr(self, '_diag_window', None), dialog.destroy())).pack(side=tk.LEFT)
 
         if self._sig_hits and not self._sig_dirty:
             _show(self._sig_hits)
