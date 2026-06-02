@@ -216,7 +216,7 @@ def save_theme(theme: dict):
             json.dump(theme, f, indent=4)
     except Exception:
         pass
-CURRENT_VERSION = "1.5.9-4"
+CURRENT_VERSION = "1.5.9-5"
 GITHUB_REPO = "ERRORX2/HD2-LOG-VIEWER"
 
 def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delta_mode: bool = False,
@@ -8331,33 +8331,17 @@ if __name__ == "__main__":
     except Exception:
         _resolved_icon = None
 
-    _icon_photo_large = None
-    _icon_photo_small = None
-    if _resolved_icon and not getattr(sys, 'frozen', False):
-        try:
-            from PIL import Image, ImageTk
-            _img = Image.open(_resolved_icon)
-            _icon_photo_large = ImageTk.PhotoImage(_img.resize((32, 32), Image.LANCZOS), master=root)
-            _icon_photo_small = ImageTk.PhotoImage(_img.resize((16, 16), Image.LANCZOS), master=root)
-        except Exception:
-            pass
-
     def _apply_icon(window):
-        """Apply icon to window title bar and taskbar."""
+        """Apply icon to window title bar. Safe to call multiple times."""
         if not _resolved_icon:
             return
-        if _icon_photo_large and _icon_photo_small:
-            try:
-                window.iconphoto(True, _icon_photo_large, _icon_photo_small)
-                return
-            except Exception:
-                pass
         try:
             window.iconbitmap(_resolved_icon)
         except Exception:
             pass
 
     _apply_icon(root)
+    root.bind("<Map>", lambda e: _apply_icon(root) if e.widget is root else None)
 
     if _resolved_icon:
         _orig_toplevel_init = tk.Toplevel.__init__
@@ -8443,6 +8427,7 @@ if __name__ == "__main__":
                     splash.grab_release()
                     splash.destroy()
                     root.deiconify()
+                    root.after(50, lambda: _apply_icon(root))
                     TelemetryApp(root, a)
                 root.after(0, _done)
             except Exception as exc:
