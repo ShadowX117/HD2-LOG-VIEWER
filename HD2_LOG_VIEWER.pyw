@@ -6009,6 +6009,17 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         for widget in self.root.winfo_children():
             widget.destroy()
 
+        try:
+            import sys as _sys, os as _os
+            if getattr(_sys, 'frozen', False):
+                self.root.iconbitmap(_sys.executable)
+            else:
+                _p = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'assets', 'icon.ico')
+                if _os.path.exists(_p):
+                    self.root.iconbitmap(_p)
+        except Exception:
+            pass
+
         self.root.bind("<Control-F8>", lambda e: self._toggle_debug())
         self.root.bind("<Control-c>", lambda e: self._copy_png_to_clipboard())
         self.root.bind("<Control-h>", lambda e: self._launch_stratagem_hero())
@@ -8427,8 +8438,8 @@ if __name__ == "__main__":
                     splash.grab_release()
                     splash.destroy()
                     root.deiconify()
-                    root.after(50, lambda: _apply_icon(root))
                     TelemetryApp(root, a)
+                    root.after(100, lambda: _apply_icon(root))
                 root.after(0, _done)
             except Exception as exc:
                 refs = _tk_refs[:]
