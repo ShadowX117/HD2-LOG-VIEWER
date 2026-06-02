@@ -216,7 +216,7 @@ def save_theme(theme: dict):
             json.dump(theme, f, indent=4)
     except Exception:
         pass
-CURRENT_VERSION = "1.5.9-5"
+CURRENT_VERSION = "1.5.9.1"
 GITHUB_REPO = "ERRORX2/HD2-LOG-VIEWER"
 
 def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delta_mode: bool = False,
