@@ -168,11 +168,17 @@ jobs:
           - Download: [release_$zip](https://github.com/${{ github.repository }}/releases/download/$tag/$zip)
 
           ### 🔐 Integrity
-
-          - EXE SHA256: $exeHash
-          - Groups JSON SHA256: $jsonHash
-          - Manifest SHA256: $manifestHash
-          - ZIP SHA256: $zipHash
+          
+          <details>
+          
+          <summary>Cryptographic Hashes</summary>
+          
+          * EXE SHA256: ``$exeHash``
+          * Groups JSON SHA256: ``$jsonHash``
+          * Manifest SHA256: ``$manifestHash``
+          * ZIP SHA256: ``$zipHash``
+          
+          </details>
           $end
           "@
 
