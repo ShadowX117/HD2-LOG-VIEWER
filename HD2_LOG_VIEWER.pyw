@@ -207,6 +207,48 @@ BUILTIN_PRESETS = {
                       "plot_c3": "#ff00ff", "plot_c4": "#00ff00", "plot_c5": "#ffffff",
                       "hm_safe": "#004400", "hm_ok": "#00cc00", "hm_warn": "#ffff00",
                       "hm_hot":  "#ff6600", "hm_crit": "#ff0000", "hm_max": "#ffffff"},
+    "Cathode": {"_dark": True,
+                      "bg": "#160f08", "bg2": "#231809", "bg3": "#3a2a14",
+                      "fg": "#ffb86b", "accent": "#ff5400", "accent2": "#ffb86b",
+                      "plot_c0": "#ff5400", "plot_c1": "#ffb86b", "plot_c2": "#ff8c3c",
+                      "plot_c3": "#d4a017", "plot_c4": "#c1440e", "plot_c5": "#ffd699",
+                      "hm_safe": "#3a2a08", "hm_ok": "#d4a017", "hm_warn": "#ff8c3c",
+                      "hm_hot":  "#ff5400", "hm_crit": "#c1440e", "hm_max": "#7a1f00"},
+    "Garnet":         {"_dark": True,
+                      "bg": "#241018", "bg2": "#321420", "bg3": "#46202f",
+                      "fg": "#f0d8e0", "accent": "#d6336c", "accent2": "#f06595",
+                      "plot_c0": "#f06595", "plot_c1": "#63c5da", "plot_c2": "#ffd166",
+                      "plot_c3": "#a78bfa", "plot_c4": "#7ed6a5", "plot_c5": "#d6336c",
+                      "hm_safe": "#2f3d2a", "hm_ok": "#7ed6a5", "hm_warn": "#ffd166",
+                      "hm_hot":  "#f06595", "hm_crit": "#d6336c", "hm_max": "#80143f"},
+    "Glacier":        {"_dark": False,
+                      "bg": "#eef4f6", "bg2": "#ffffff", "bg3": "#d4e2e6",
+                      "fg": "#16313a", "accent": "#0e9594", "accent2": "#0a6e6d",
+                      "plot_c0": "#0e9594", "plot_c1": "#1d5b79", "plot_c2": "#e36414",
+                      "plot_c3": "#774c60", "plot_c4": "#5fa8d3", "plot_c5": "#0a6e6d",
+                      "hm_safe": "#0a6e6d", "hm_ok": "#5fa8d3", "hm_warn": "#e8a13b",
+                      "hm_hot":  "#e36414", "hm_crit": "#b3331d", "hm_max": "#6e1a0f"},
+    "Vaporwave":      {"_dark": True,
+                      "bg": "#170824", "bg2": "#23103a", "bg3": "#3a1c5c",
+                      "fg": "#f3e8ff", "accent": "#9d4edd", "accent2": "#ff2bd6",
+                      "plot_c0": "#ff2bd6", "plot_c1": "#9d4edd", "plot_c2": "#00f5d4",
+                      "plot_c3": "#fee440", "plot_c4": "#5390d9", "plot_c5": "#ff6392",
+                      "hm_safe": "#1a3a4a", "hm_ok": "#00f5d4", "hm_warn": "#fee440",
+                      "hm_hot":  "#ff6392", "hm_crit": "#ff2bd6", "hm_max": "#6b0f8c"},
+    "Bunker":         {"_dark": True,
+                      "bg": "#1c1f14", "bg2": "#262a1a", "bg3": "#3a3f26",
+                      "fg": "#dfe3c8", "accent": "#7d8b4f", "accent2": "#a3ad6e",
+                      "plot_c0": "#a3ad6e", "plot_c1": "#6e9b8c", "plot_c2": "#c19a4b",
+                      "plot_c3": "#9a6e4b", "plot_c4": "#7d8b4f", "plot_c5": "#5f7a6b",
+                      "hm_safe": "#2e3a22", "hm_ok": "#7d8b4f", "hm_warn": "#c19a4b",
+                      "hm_hot":  "#a3702f", "hm_crit": "#7a3b1f", "hm_max": "#4a1f10"},
+    "Stingray Analyzer": {"_dark": True,
+                      "bg": "#0e1117", "bg2": "#161b22", "bg3": "#1c2333",
+                      "fg": "#e6edf3", "accent": "#e85d04", "accent2": "#faa307",
+                      "plot_c0": "#e85d04", "plot_c1": "#faa307", "plot_c2": "#3fb950",
+                      "plot_c3": "#f85149", "plot_c4": "#a371f7", "plot_c5": "#8b949e",
+                      "hm_safe": "#1c3a22", "hm_ok": "#3fb950", "hm_warn": "#d29922",
+                      "hm_hot":  "#e85d04", "hm_crit": "#f85149", "hm_max": "#7a1410"},
 }
 
 def load_theme() -> dict:
@@ -224,7 +266,7 @@ def save_theme(theme: dict):
             json.dump(theme, f, indent=4)
     except Exception:
         pass
-CURRENT_VERSION = "1.6.3"
+CURRENT_VERSION = "1.6.4"
 GITHUB_REPO = "ERRORX2/HD2-LOG-VIEWER"
 
 def save_config(groups_dict: Dict, is_dark: bool, multi_mode: bool = False, delta_mode: bool = False,
@@ -2667,10 +2709,11 @@ figure img{{border-radius:8px;}}
                 self.root.after(0, _done)
 
             except Exception as e:
+                _err_text = f'{type(e).__name__}: {e}'
                 def _fail():
                     _close_wait()
                     from tkinter import messagebox
-                    messagebox.showerror('Export Error', f'{type(e).__name__}: {e}')
+                    messagebox.showerror('Export Error', _err_text)
                 self.root.after(0, _fail)
 
         threading.Thread(target=_generate, daemon=True).start()
@@ -2850,7 +2893,7 @@ figure img{{border-radius:8px;}}
                         highlightbackground=bg, highlightcolor=accent,
                         relief='flat', bd=0
                     )
-                    if cls == 'Checkbutton':                        
+                    if cls == 'Checkbutton':     
                         child.configure(
                             selectcolor=bg3,
                             indicatoron=False
@@ -2862,7 +2905,14 @@ figure img{{border-radius:8px;}}
                 else:
                     child.configure(background=bg)
             except Exception:
-                pass                                
+                pass
+
+                                                                            
+                                                                         
+                                                                              
+                                                                             
+                                                                        
+                                                
         try:
             for button in getattr(toolbar, '_buttons', {}).values():
                 if button is not None and button.winfo_exists():
@@ -7455,7 +7505,17 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         flag = " [DEBUG]" if self.debug_mode else ""
         self.root.title(f"RESYNC.ERR v{CURRENT_VERSION} - {self.analyzer.path.name}{flag}")
         self.root.geometry("1440x900")
-        self.root.minsize(1440, 900)                                                        
+        self.root.minsize(1440, 900)
+
+                                                                         
+                                                                            
+                                                            
+                                                                   
+                                                                            
+                                                                          
+                                                                        
+                                                                      
+                                                                      
         _prev_left_width = getattr(self, '_user_left_width', None)
 
         for widget in self.root.winfo_children():
@@ -7476,7 +7536,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         self.root.bind("<Control-c>", lambda e: self._copy_png_to_clipboard())
         self.root.bind("<Control-h>", lambda e: self._launch_stratagem_hero())
         self.paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        self.paned.pack(fill=tk.BOTH, expand=True)                     
+        self.paned.pack(fill=tk.BOTH, expand=True)
         _left_width = 370
         if _prev_left_width and 150 <= _prev_left_width <= 900:
             _left_width = _prev_left_width
@@ -7636,7 +7696,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                 self._sash_press_pos = None
 
         def _on_sash_release(e):
-            self.canvas_checklist.after(50, _refresh_scrollregion)                   
+            self.canvas_checklist.after(50, _refresh_scrollregion)
             try:
                 new_pos = self.paned.sashpos(0)
             except Exception:
@@ -7660,12 +7720,12 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
         self.sc_checklist.pack(side=tk.RIGHT, fill=tk.Y)
         self._build_checklist()
         self.right = ttk.Frame(self.paned, padding="5")
-        self.paned.add(self.right, weight=4)                                         
+        self.paned.add(self.right, weight=4)
         self.root.update_idletasks()
         try:
             self.paned.sashpos(0, self._pending_left_width)
         except Exception:
-            pass                                           
+            pass                           
         def _on_paned_configure(event):
             try:
                 target = self._pending_left_width
@@ -8227,7 +8287,7 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
             try:
                 analyzer = TelemetryAnalyzer(path)
                 analyzer.load()
-                def _done():                       
+                def _done():  
                     try:
                         on_success(analyzer)
                     finally:
@@ -8235,13 +8295,14 @@ figcaption{{color:var(--muted);font-size:11px;margin-top:6px;text-align:center;}
                         _release_tk_refs()
                 self.root.after(0, _done)
             except Exception as exc:
+                _captured_exc = exc
                 def _fail():
                     _close()
                     _release_tk_refs()
                     if on_error:
-                        on_error(exc)
+                        on_error(_captured_exc)
                     else:
-                        messagebox.showerror("Load Error", str(exc))
+                        messagebox.showerror("Load Error", str(_captured_exc))
                 self.root.after(0, _fail)
 
         threading.Thread(target=_worker, daemon=True).start()
@@ -9834,7 +9895,18 @@ if __name__ == "__main__":
             f"ERRORX2.RESYNC.ERR.{CURRENT_VERSION}"
         )
     except Exception:
-        pass                                         
+        pass
+
+                           
+                                                                             
+                                                                             
+                                                                              
+                                                                             
+                                                                              
+                                                                            
+                                                                               
+                                                                             
+                                                 
     try:
         import ctypes
         try:
@@ -9846,6 +9918,9 @@ if __name__ == "__main__":
 
     root = tk.Tk()
     root.withdraw()
+
+
+
 
     try:
         if getattr(sys, 'frozen', False):
@@ -9950,7 +10025,7 @@ if __name__ == "__main__":
                 a = TelemetryAnalyzer(path)
                 a.load()
                 refs = _tk_refs[:]
-                def _done():
+                def _done():                                                 
                     try:
                         app = TelemetryApp(root, a)
                         app.canvas_widget.draw()                            
@@ -9970,12 +10045,13 @@ if __name__ == "__main__":
                     root.after(100, lambda: _apply_icon(root))
                 root.after(0, _done)
             except Exception as exc:
+                _captured_exc = exc
                 refs = _tk_refs[:]
                 def _fail():
                     refs.clear()
                     splash.grab_release()
                     splash.destroy()
-                    messagebox.showerror("Error", str(exc))
+                    messagebox.showerror("Error", str(_captured_exc))
                     root.destroy()
                 root.after(0, _fail)
         threading.Thread(target=_worker, daemon=True).start()
